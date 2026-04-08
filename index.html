@@ -222,6 +222,21 @@ textarea{resize:vertical;min-height:50px}
             <button class="btn sm wn" onclick="openM('reset-confirm')">초기화</button>
           </div>
           <div class="card" style="margin-top:1rem">
+            <div class="ctitle">데이터 백업 / 복원</div>
+            <div style="font-size:12px;color:#666;margin-bottom:.875rem;line-height:1.7">
+              전체 데이터를 JSON 파일로 다운로드하거나, 백업 파일로 복원합니다.<br>
+              Supabase 자동 백업(매일)과 함께 중요한 변경 후 수동 백업을 권장합니다.
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:.5rem">
+              <button class="btn sm pr" onclick="downloadBackup()">백업 다운로드</button>
+              <label class="btn sm" style="cursor:pointer;margin:0">
+                복원 (JSON 업로드)
+                <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreBackup(this)">
+              </label>
+            </div>
+            <div id="backup-info" style="font-size:11px;color:#888;margin-top:.5rem"></div>
+          </div>
+          <div class="card" style="margin-top:1rem">
             <div class="ctitle" style="color:#A32D2D">전체 데이터 리셋</div>
             <div class="reset-danger">
               <strong>경고:</strong> 모든 직원, 신청 내역, 설정이 삭제됩니다.<br>
@@ -313,6 +328,19 @@ textarea{resize:vertical;min-height:50px}
   </div>
 </div>
 
+
+<!-- 복원 확인 -->
+<div class="overlay" id="m-restore-confirm">
+  <div class="modal">
+    <div class="modal-title">백업 파일로 복원</div>
+    <div class="confirm-box" id="restore-preview-text" style="line-height:1.8"></div>
+    <div style="font-size:12px;color:#666;margin-bottom:1rem;margin-top:.75rem;line-height:1.7">현재 데이터를 백업 파일로 <strong>덮어씁니다.</strong><br>복원 전 현재 데이터를 먼저 백업 다운로드 해두세요.</div>
+    <div class="rbtns">
+      <button class="btn pr" style="flex:1" onclick="confirmRestore()">복원 실행</button>
+      <button class="btn" style="flex:1" onclick="closeM('restore-confirm');pendingRestoreData=null">취소</button>
+    </div>
+  </div>
+</div>
 <!-- 승인/반려 -->
 <div class="overlay" id="m-action">
   <div class="modal">
@@ -715,20 +743,43 @@ function initReqForm(eid){
 }
 function setType(eid,type){
   empTypes[eid]=type;
+  const date=document.getElementById('rq-date-'+eid)?.value||'';
+  const holiday=date?isHoliday(date):false;
   const tabs=document.querySelectorAll(`#type-tabs-${eid} .ttype`);
-  tabs.forEach((t,i)=>{const types=['ext','hol','use'];t.className='ttype'+(type===types[i]?(type==='ext'?' on':type==='hol'?' hol-on':' use-on'):'');});
+  const types=['ext','hol','use'];
+  tabs.forEach((t,i)=>{
+    const tp=types[i];
+    const disabled=(tp==='ext'&&holiday)||(tp==='hol'&&!holiday&&tp!=='use');
+    t.className='ttype'+(type===tp?(tp==='ext'?' on':tp==='hol'?' hol-on':' use-on'):'');
+    if(disabled){t.style.opacity='.35';t.style.pointerEvents='none';t.style.cursor='default';}
+    else{t.style.opacity='';t.style.pointerEvents='';t.style.cursor='';}
+  });
   const sw=document.getElementById('rq-st-wrap-'+eid),ew=document.getElementById('rq-et-wrap-'+eid);
   const uw=document.getElementById('rq-use-wrap-'+eid),lw=document.getElementById('rq-leave-wrap-'+eid);
   const isUse=type==='use',isHol=type==='hol';
   if(sw)sw.style.display=isUse?'none':'block';
   if(ew)ew.style.display=isUse?'none':'block';
   if(uw)uw.style.display=isUse?'block':'none';
-  if(lw)lw.style.display=isHol?'block':'none';
+  /* 연차일 근무 체크박스: 휴일근무 탭이고, 날짜가 공휴일/주말이 아닐 때만 표시 */
+  if(lw)lw.style.display=(isHol&&date&&!holiday)?'block':'none';
   onDateChange(eid);updatePreview(eid);
 }
 function getSelVal(containerId){return document.getElementById(containerId)?.querySelector('select')?.value||'';}
 function onDateChange(eid){
-  const type=empTypes[eid]||'ext',date=document.getElementById('rq-date-'+eid)?.value||'';
+  const date=document.getElementById('rq-date-'+eid)?.value||'';
+  const holiday=date?isHoliday(date):false;
+  /* 날짜 바뀌면 적절한 탭으로 자동 전환 */
+  const curType=empTypes[eid]||'ext';
+  if(date){
+    if(holiday&&curType==='ext'){
+      empTypes[eid]='hol';
+    } else if(!holiday&&curType==='hol'){
+      const leaveChk=document.getElementById('rq-leave-'+eid);
+      if(!leaveChk||!leaveChk.checked) empTypes[eid]='ext';
+    }
+  }
+  setType(eid,empTypes[eid]||'ext');
+  const type=empTypes[eid]||'ext';
   const infoEl=document.getElementById('rq-info-'+eid);if(!infoEl)return;
   if(type==='ext'){
     const sched=getSchedForDate(date);
@@ -736,9 +787,8 @@ function onDateChange(eid){
     else if(date){infoEl.style.display='block';infoEl.className='warn-line';infoEl.textContent='해당 날짜 공식 근무시간 없음 — 입력 전체가 연장근무로 산정됩니다.';}
     else{infoEl.style.display='none';}
   } else if(type==='hol'){
-    const isH=isHoliday(date),leaveChk=document.getElementById('rq-leave-'+eid),isLeave=leaveChk&&leaveChk.checked;
-    if(date&&!isH&&!isLeave){infoEl.style.display='block';infoEl.className='warn-line';infoEl.textContent='토/일/공휴일이 아닙니다. 연차일 근무 체크 필요.';}
-    else if(date&&isH){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent='토/일 또는 공휴일 근무입니다.';}
+    const leaveChk=document.getElementById('rq-leave-'+eid),isLeave=leaveChk&&leaveChk.checked;
+    if(date&&holiday){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent='토/일 또는 공휴일 근무입니다.';}
     else if(date&&isLeave){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent='연차일 근무 — 대체휴무가 발생합니다.';}
     else{infoEl.style.display='none';}
   } else{infoEl.style.display='none';}
@@ -969,6 +1019,78 @@ async function delHol(date){
   HOLIDAYS=HOLIDAYS.filter(h=>h.date!==date);renderHols(true);
 }
 function toggleF(id){document.getElementById(id).classList.toggle('open');}
+
+/* ── 백업 / 복원 ── */
+async function downloadBackup(){
+  const info=document.getElementById('backup-info');
+  info.textContent='백업 준비 중...';
+  const backup={
+    version:1,
+    created_at:new Date().toISOString(),
+    config:CFG,
+    employees:EMPLOYEES,
+    holidays:HOLIDAYS,
+    requests:REQUESTS,
+  };
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const dateStr=today().replace(/-/g,'');
+  a.href=url;a.download=`work-manager-backup-${dateStr}.json`;a.click();
+  URL.revokeObjectURL(url);
+  info.textContent=`마지막 백업: ${new Date().toLocaleString('ko-KR')} · 직원 ${EMPLOYEES.length}명 · 신청 ${REQUESTS.length}건`;
+  showToast('백업 파일 다운로드됨');
+}
+
+let pendingRestoreData=null;
+function restoreBackup(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.version||!data.employees||!data.requests){showToast('유효하지 않은 백업 파일입니다');return;}
+      pendingRestoreData=data;
+      const d=new Date(data.created_at);
+      const preview=`백업 날짜: ${d.toLocaleString('ko-KR')}<br>직원: ${data.employees.length}명<br>신청 내역: ${data.requests.length}건<br>공휴일: ${data.holidays.length}개`;
+      document.getElementById('restore-preview-text').innerHTML=preview;
+      openM('restore-confirm');
+    }catch(err){showToast('파일을 읽을 수 없습니다');}
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
+async function confirmRestore(){
+  if(!pendingRestoreData){closeM('restore-confirm');return;}
+  const data=pendingRestoreData;
+  showToast('복원 중...');
+  try{
+    await Promise.all([
+      db.from('requests').delete().neq('id','__none__'),
+      db.from('employees').delete().neq('id','__none__'),
+      db.from('holidays').delete().neq('date','__none__'),
+    ]);
+    if(data.employees.length>0)await db.from('employees').insert(data.employees.map(e=>({id:e.id,name:e.name,role:e.role,created_at:e.created_at})));
+    if(data.holidays.length>0)await db.from('holidays').insert(data.holidays);
+    if(data.requests.length>0){
+      const chunks=[];
+      for(let i=0;i<data.requests.length;i+=50)chunks.push(data.requests.slice(i,i+50));
+      for(const chunk of chunks)await db.from('requests').insert(chunk.map(r=>({id:r.id,eid:r.eid,type:r.type,date:r.date,start_time:r.start_time,end_time:r.end_time,hours:r.hours,daehu:r.daehu,reason:r.reason,status:r.status,comment:r.comment,expiry:r.expiry,is_leave:r.is_leave,created_at:r.created_at})));
+    }
+    if(data.config){
+      const c=data.config;
+      await db.from('config').upsert({id:'main',biz:c.biz||'',country:c.country||'',lunch_start:c.lunch?.s||'12:00',lunch_end:c.lunch?.e||'13:00',schedule:c.schedule,admin_pw:c.admin_pw||'7598',approver_pw:c.approver_pw||APR_INIT,approver_pw_set:c.approver_pw_set||false});
+    }
+    await loadAll();
+    closeM('restore-confirm');pendingRestoreData=null;
+    buildNav();renderDash();
+    const info=document.getElementById('backup-info');
+    if(info)info.textContent=`복원 완료: ${new Date().toLocaleString('ko-KR')}`;
+    showToast('복원이 완료됐습니다');
+  }catch(err){showToast('복원 중 오류: '+err.message);}
+}
 
 async function init(){
   await loadAll();
