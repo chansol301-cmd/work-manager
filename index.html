@@ -250,6 +250,15 @@ textarea{resize:vertical;min-height:50px}
   </div>
 </div>
 
+<!-- 안내 모달 -->
+<div class="overlay" id="m-info">
+  <div class="modal" style="max-width:320px">
+    <div class="modal-title" id="info-modal-title">안내</div>
+    <div style="font-size:12px;color:#666;margin:.75rem 0 1.25rem;line-height:1.7" id="info-modal-msg"></div>
+    <button class="btn pr" style="width:100%" onclick="closeM('info')">확인</button>
+  </div>
+</div>
+
 <!-- 관리자 로그인 -->
 <div class="overlay" id="m-adm-login">
   <div class="modal">
@@ -408,15 +417,33 @@ let EMPLOYEES=[];
 let HOLIDAYS=[];
 let REQUESTS=[];
 
-function timeSelect(val,onChange){
+function timeSelect(val,onChange,fromTime,toTime){
   const s=document.createElement('select');
   s.style.cssText='width:90px;font-size:12px';
   const empty=document.createElement('option');empty.value='';empty.textContent='—';s.appendChild(empty);
-  HOURS_OPTS.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;if(t===val)o.selected=true;s.appendChild(o);});
+  const fMin=fromTime?toMin(fromTime):null;
+  const tMin=toTime?toMin(toTime):null;
+  HOURS_OPTS.forEach(t=>{
+    const tm=toMin(t);
+    if(fMin!==null&&tm<fMin)return;
+    if(tMin!==null&&tm>tMin)return;
+    const o=document.createElement('option');o.value=t;o.textContent=t;
+    if(t===val)o.selected=true;
+    s.appendChild(o);
+  });
   if(onChange)s.onchange=()=>onChange(s.value);
   return s;
 }
 
+function showInfoModal(title,msg){
+  document.getElementById('info-modal-title').textContent=title;
+  document.getElementById('info-modal-msg').innerHTML=msg;
+  openM('info');
+}
+function renderTabActive(eid,type){
+  const tabs=document.querySelectorAll(`#type-tabs-${eid} .ttype`);
+  tabs.forEach((t,i)=>{const tp=['ext','hol','use'][i];t.className='ttype'+(type===tp?(tp==='ext'?' on':tp==='hol'?' hol-on':' use-on'):'');});
+}
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
 function toMin(t){if(!t||!t.includes(':'))return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
 function rf(x){return Math.round(x*2)/2;}
@@ -634,7 +661,7 @@ function renderEmpPage(pid){
   const reqFormHtml=`<div class="req-card">
     <div class="req-toggle" onclick="toggleReqBody('${eid}')">
       <span id="req-toggle-icon-${eid}" style="font-size:10px;color:#888">▶</span>
-      <span>근무 신청</span>
+      <span>신청</span>
     </div>
     <div class="req-body" id="req-body-${eid}">
       <div class="type-tabs" id="type-tabs-${eid}">
@@ -730,68 +757,124 @@ async function confirmCancelReq(){
 }
 
 let empTypes={};
+function updateTimeSels(eid){
+  const type=empTypes[eid]||'ext';
+  const date=document.getElementById('rq-date-'+eid)?.value||'';
+  const stWrap=document.getElementById('rq-st-sel-'+eid);
+  const etWrap=document.getElementById('rq-et-sel-'+eid);
+  if(!stWrap||!etWrap)return;
+
+  /* 연장근무 + 날짜 있으면 → 공식 퇴근시간 이후만 */
+  let stFloor='';
+  if(type==='ext'&&date){
+    const sched=getSchedForDate(date);
+    if(sched&&sched.e) stFloor=sched.e;
+  }
+
+  /* 현재 선택값 기억 (범위 내에 있으면 유지) */
+  const prevSt=stWrap.querySelector('select')?.value||'';
+  const prevEt=etWrap.querySelector('select')?.value||'';
+  const keepSt=(prevSt&&(!stFloor||toMin(prevSt)>=toMin(stFloor)))?prevSt:'';
+
+  /* 시작시간 드롭다운: stFloor ~ 23:00 (종료를 위해 최소 30분 여유) */
+  stWrap.innerHTML='';
+  const stSel=timeSelect(keepSt,()=>{
+    refreshEtSel(eid,stFloor);
+    updatePreview(eid);
+  },stFloor,'23:00');
+  stWrap.appendChild(stSel);
+
+  /* 종료시간 드롭다운: 시작시간 이후 ~ 23:30 */
+  refreshEtSel(eid,stFloor,prevEt);
+}
+
+function refreshEtSel(eid,stFloor,preferEt){
+  const etWrap=document.getElementById('rq-et-sel-'+eid);
+  const stWrap=document.getElementById('rq-st-sel-'+eid);
+  if(!etWrap)return;
+  const curSt=stWrap?.querySelector('select')?.value||stFloor||'';
+  /* 종료는 시작보다 30분 이상 뒤부터 */
+  const etFrom=curSt?HOURS_OPTS.find(t=>toMin(t)>toMin(curSt))||'':'';
+  const prevEt=preferEt||etWrap.querySelector('select')?.value||'';
+  const keepEt=(prevEt&&etFrom&&toMin(prevEt)>toMin(curSt))?prevEt:'';
+  etWrap.innerHTML='';
+  const etSel=timeSelect(keepEt,()=>updatePreview(eid),etFrom,'23:30');
+  etWrap.appendChild(etSel);
+}
 function initReqForm(eid){
-  const stSel=document.getElementById('rq-st-sel-'+eid);
-  const etSel=document.getElementById('rq-et-sel-'+eid);
-  if(stSel){stSel.innerHTML='';stSel.appendChild(timeSelect('19:00',()=>updatePreview(eid)));}
-  if(etSel){etSel.innerHTML='';etSel.appendChild(timeSelect('21:00',()=>updatePreview(eid)));}
+  empTypes[eid]='ext';
   const sel=document.getElementById('rq-use-'+eid);
   if(sel){sel.innerHTML='';for(let h=0.5;h<=16;h+=0.5){const o=document.createElement('option');o.value=h;o.textContent=`${h}h`;sel.appendChild(o);}}
+  /* 날짜 초기화 — 유형 먼저 선택하고 날짜 선택하는 흐름 */
+  document.getElementById('rq-date-'+eid).value='';
   setType(eid,'ext');
-  document.getElementById('rq-date-'+eid).value=today();
-  onDateChange(eid);
+  const stWrap=document.getElementById('rq-st-sel-'+eid);
+  const etWrap=document.getElementById('rq-et-sel-'+eid);
+  if(stWrap){stWrap.innerHTML='';stWrap.appendChild(timeSelect('',()=>updatePreview(eid),'','23:30'));}
+  if(etWrap){etWrap.innerHTML='';etWrap.appendChild(timeSelect('',()=>updatePreview(eid),'','23:30'));}
 }
 function setType(eid,type){
+  /* 유형 먼저 선택, 날짜는 그 다음 — 탭 클릭 시 유형만 바꾸고 날짜 판단은 onDateChange에서 */
   empTypes[eid]=type;
-  const date=document.getElementById('rq-date-'+eid)?.value||'';
-  const holiday=date?isHoliday(date):false;
   const tabs=document.querySelectorAll(`#type-tabs-${eid} .ttype`);
-  const types=['ext','hol','use'];
-  tabs.forEach((t,i)=>{
-    const tp=types[i];
-    const disabled=(tp==='ext'&&holiday)||(tp==='hol'&&!holiday&&tp!=='use');
-    t.className='ttype'+(type===tp?(tp==='ext'?' on':tp==='hol'?' hol-on':' use-on'):'');
-    if(disabled){t.style.opacity='.35';t.style.pointerEvents='none';t.style.cursor='default';}
-    else{t.style.opacity='';t.style.pointerEvents='';t.style.cursor='';}
-  });
+  tabs.forEach((t,i)=>{const tp=['ext','hol','use'][i];t.className='ttype'+(type===tp?(tp==='ext'?' on':tp==='hol'?' hol-on':' use-on'):'');});
   const sw=document.getElementById('rq-st-wrap-'+eid),ew=document.getElementById('rq-et-wrap-'+eid);
   const uw=document.getElementById('rq-use-wrap-'+eid),lw=document.getElementById('rq-leave-wrap-'+eid);
   const isUse=type==='use',isHol=type==='hol';
   if(sw)sw.style.display=isUse?'none':'block';
   if(ew)ew.style.display=isUse?'none':'block';
   if(uw)uw.style.display=isUse?'block':'none';
-  /* 연차일 근무 체크박스: 휴일근무 탭이고, 날짜가 공휴일/주말이 아닐 때만 표시 */
-  if(lw)lw.style.display=(isHol&&date&&!holiday)?'block':'none';
-  onDateChange(eid);updatePreview(eid);
+  if(lw)lw.style.display='none';
+  updateTimeSels(eid);
+  const date=document.getElementById('rq-date-'+eid)?.value||'';
+  if(date)onDateChange(eid);
+  else updatePreview(eid);
 }
 function getSelVal(containerId){return document.getElementById(containerId)?.querySelector('select')?.value||'';}
 function onDateChange(eid){
   const date=document.getElementById('rq-date-'+eid)?.value||'';
-  const holiday=date?isHoliday(date):false;
-  /* 날짜 바뀌면 적절한 탭으로 자동 전환 */
-  const curType=empTypes[eid]||'ext';
-  if(date){
-    if(holiday&&curType==='ext'){
-      empTypes[eid]='hol';
-    } else if(!holiday&&curType==='hol'){
-      const leaveChk=document.getElementById('rq-leave-'+eid);
-      if(!leaveChk||!leaveChk.checked) empTypes[eid]='ext';
-    }
-  }
-  setType(eid,empTypes[eid]||'ext');
+  if(!date){updatePreview(eid);return;}
+  const holiday=isHoliday(date);
   const type=empTypes[eid]||'ext';
-  const infoEl=document.getElementById('rq-info-'+eid);if(!infoEl)return;
+  const lw=document.getElementById('rq-leave-wrap-'+eid);
+  const infoEl=document.getElementById('rq-info-'+eid);
+
+  /* 날짜 선택 후 유형과 충돌 체크 */
+  if(type==='ext'&&holiday){
+    showInfoModal(
+      '해당 날짜는 휴일입니다',
+      '토/일 또는 공휴일에는 연장근무 대신<br><strong>휴일근무</strong>로 신청해주세요.'
+    );
+    empTypes[eid]='hol';
+    setType(eid,'hol');
+    return;
+  }
+  if(type==='hol'&&!holiday){
+    /* 평일 + 휴일근무 → 연차일 근무 체크박스 표시 및 안내 */
+    if(lw)lw.style.display='block';
+    const leaveChk=document.getElementById('rq-leave-'+eid);
+    if(!leaveChk||!leaveChk.checked){
+      showInfoModal(
+        '해당 날짜는 평일입니다',
+        '평일 휴일근무는 <strong>연차일 근무</strong>인 경우에만 가능합니다.<br>아래 체크박스를 선택해주세요.'
+      );
+    }
+  } else {
+    if(lw)lw.style.display='none';
+  }
+
+  updateTimeSels(eid);
+  if(!infoEl)return;
   if(type==='ext'){
     const sched=getSchedForDate(date);
-    if(sched&&date){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent=`공식 근무: ${sched.s} ~ ${sched.e} · 이 시간 외 구간만 연장근무로 산정`;}
-    else if(date){infoEl.style.display='block';infoEl.className='warn-line';infoEl.textContent='해당 날짜 공식 근무시간 없음 — 입력 전체가 연장근무로 산정됩니다.';}
-    else{infoEl.style.display='none';}
+    if(sched){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent=`공식 근무: ${sched.s} ~ ${sched.e} · 퇴근 이후부터 연장근무로 산정`;}
+    else{infoEl.style.display='block';infoEl.className='warn-line';infoEl.textContent='해당 날짜 공식 근무시간 없음 — 입력 전체가 연장근무로 산정됩니다.';}
   } else if(type==='hol'){
     const leaveChk=document.getElementById('rq-leave-'+eid),isLeave=leaveChk&&leaveChk.checked;
-    if(date&&holiday){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent='토/일 또는 공휴일 근무입니다.';}
-    else if(date&&isLeave){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent='연차일 근무 — 대체휴무가 발생합니다.';}
+    if(holiday){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent='토/일 또는 공휴일 근무입니다.';}
+    else if(isLeave){infoEl.style.display='block';infoEl.className='info-line';infoEl.textContent='연차일 근무 — 대체휴무가 발생합니다.';}
     else{infoEl.style.display='none';}
-  } else{infoEl.style.display='none';}
+  } else{if(infoEl)infoEl.style.display='none';}
   updatePreview(eid);
 }
 function updatePreview(eid){
