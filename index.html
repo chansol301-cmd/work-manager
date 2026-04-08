@@ -7,124 +7,131 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;color:#1a1a1a;background:#f5f4f0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;color:#1a1a1a;background:#f2f1ed}
 .app{display:flex;min-height:100vh}
-.sb{width:200px;min-width:200px;background:#fff;border-right:0.5px solid rgba(0,0,0,.1);display:flex;flex-direction:column}
-.logo{padding:.75rem 1rem;border-bottom:0.5px solid rgba(0,0,0,.1)}
-.logo-name{font-size:14px;font-weight:500}
-.logo-sub{font-size:11px;color:#888;margin-top:1px}
-.lbadge{display:inline-block;margin-top:5px;padding:2px 8px;border-radius:100px;font-size:10px;font-weight:500}
+.sb{width:220px;min-width:220px;background:#fff;border-right:1px solid rgba(0,0,0,.09);display:flex;flex-direction:column}
+.logo{padding:1rem 1.25rem;border-bottom:1px solid rgba(0,0,0,.09)}
+.logo-name{font-size:16px;font-weight:700}
+.logo-sub{font-size:13px;color:#888;margin-top:2px}
+.lbadge{display:inline-block;margin-top:6px;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600}
 .lb-user{background:#E6F1FB;color:#0C447C}
 .lb-apr{background:#E1F5EE;color:#085041}
 .lb-adm{background:#FAEEDA;color:#633806}
-.nav{display:flex;flex-direction:column;padding:.5rem 0;flex:1;overflow-y:auto}
-.nsep{height:0.5px;background:rgba(0,0,0,.08);margin:.375rem 0}
-.nsec{font-size:10px;color:#aaa;padding:4px 1rem;text-transform:uppercase;letter-spacing:.06em}
-.ni{padding:7px 1rem;font-size:13px;color:#666;cursor:pointer;display:flex;align-items:center;gap:7px}
-.ni:hover{background:#f5f4f0;color:#1a1a1a}
-.ni.on{background:#f5f4f0;color:#1a1a1a;font-weight:500}
-.ndot{width:6px;height:6px;border-radius:50%;background:#ccc;flex-shrink:0}
+.nav{display:flex;flex-direction:column;padding:.625rem 0;flex:1;overflow-y:auto}
+.nsep{height:1px;background:rgba(0,0,0,.07);margin:.5rem 0}
+.nsec{font-size:11px;color:#aaa;padding:5px 1.25rem;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.ni{padding:10px 1.25rem;font-size:14px;color:#555;cursor:pointer;display:flex;align-items:center;gap:9px;border-radius:0}
+.ni:hover{background:#f2f1ed;color:#1a1a1a}
+.ni.on{background:#f2f1ed;color:#1a1a1a;font-weight:700}
+.ndot{width:7px;height:7px;border-radius:50%;background:#ccc;flex-shrink:0}
 .ni.on .ndot{background:#185FA5}
 .ni.nappr.on .ndot{background:#1D9E75}
 .ni.nadm.on .ndot{background:#BA7517}
-.pchip{background:#E24B4A;color:#fff;border-radius:100px;font-size:10px;padding:1px 5px;margin-left:3px}
+.pchip{background:#E24B4A;color:#fff;border-radius:100px;font-size:11px;padding:2px 7px;margin-left:4px;font-weight:700}
 .main{flex:1;display:flex;flex-direction:column;min-width:0}
-.topbar{background:#fff;border-bottom:0.5px solid rgba(0,0,0,.1);padding:.75rem 1.25rem;display:flex;align-items:center;gap:8px}
-.tbtitle{font-size:14px;font-weight:500;flex:1}
-.content{flex:1;padding:1.25rem;overflow-y:auto}
-.page{display:none;flex-direction:column;gap:1rem}
+.topbar{background:#fff;border-bottom:1px solid rgba(0,0,0,.09);padding:1rem 1.5rem;display:flex;align-items:center;gap:10px}
+.tbtitle{font-size:18px;font-weight:700;flex:1}
+.content{flex:1;padding:1.5rem;overflow-y:auto}
+.page{display:none;flex-direction:column;gap:1.25rem}
 .page.on{display:flex}
-.card{background:#fff;border:0.5px solid rgba(0,0,0,.1);border-radius:12px;padding:1rem 1.25rem}
-.ctitle{font-size:13px;font-weight:500;margin-bottom:.875rem}
-.fg{display:grid;gap:8px;margin-bottom:.75rem}
+.card{background:#fff;border:1px solid rgba(0,0,0,.09);border-radius:14px;padding:1.5rem 1.75rem}
+.ctitle{font-size:16px;font-weight:700;margin-bottom:1.125rem}
+.fg{display:grid;gap:12px;margin-bottom:1rem}
 .c2{grid-template-columns:1fr 1fr}
 .c3{grid-template-columns:1fr 1fr 1fr}
 .c7{grid-template-columns:repeat(7,minmax(0,1fr))}
-label.fl{font-size:12px;color:#666;display:block;margin-bottom:3px}
-input,select,textarea{width:100%;padding:6px 8px;font-size:12px;border:0.5px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;color:#1a1a1a;font-family:inherit}
-input[type=checkbox]{width:auto;margin:0;vertical-align:middle;cursor:pointer}
+label.fl{font-size:14px;color:#444;display:block;margin-bottom:5px;font-weight:500}
+input,select,textarea{width:100%;padding:9px 12px;font-size:14px;border:1.5px solid rgba(0,0,0,.15);border-radius:9px;background:#fff;color:#1a1a1a;font-family:inherit}
+input[type=checkbox]{width:auto;margin:0;vertical-align:middle;cursor:pointer;width:17px;height:17px}
 input[type=date]{cursor:pointer}
-input:focus,select:focus,textarea:focus{outline:none;border-color:#185FA5}
-input:disabled,select:disabled{opacity:.45;cursor:default;pointer-events:none}
-textarea{resize:vertical;min-height:50px}
-.dayb{display:flex;flex-direction:column;gap:3px}
-.dayn{font-size:11px;color:#888;text-align:center;margin-bottom:2px}
-.btn{padding:6px 14px;font-size:12px;border:0.5px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;color:#1a1a1a;cursor:pointer;font-family:inherit}
-.btn:hover{background:#f5f4f0}
-.btn.pr{background:#185FA5;color:#fff;border-color:#185FA5}
-.btn.pr:hover{background:#0C447C}
-.btn.ap{background:#E1F5EE;color:#085041;border-color:#1D9E75}
-.btn.ap:hover{background:#9FE1CB}
-.btn.rj{background:#FCEBEB;color:#A32D2D;border-color:#E24B4A}
-.btn.rj:hover{background:#F7C1C1}
-.btn.wn{background:#FAECE7;color:#712B13;border-color:#D85A30}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,165,.12)}
+input:disabled,select:disabled{opacity:.4;cursor:default;pointer-events:none}
+textarea{resize:vertical;min-height:64px}
+.dayb{display:flex;flex-direction:column;gap:5px}
+.dayn{font-size:13px;color:#555;text-align:center;margin-bottom:4px;font-weight:600}
+/* ── 버튼 ── */
+.btn{padding:10px 20px;font-size:14px;border:2px solid rgba(0,0,0,.15);border-radius:10px;background:#fff;color:#1a1a1a;cursor:pointer;font-family:inherit;font-weight:600;transition:all .15s;letter-spacing:-.01em}
+.btn:hover{background:#eceae6;border-color:rgba(0,0,0,.25)}
+.btn:active{transform:scale(.97)}
+.btn.pr{background:#185FA5;color:#fff;border-color:#185FA5;box-shadow:0 2px 6px rgba(24,95,165,.25)}
+.btn.pr:hover{background:#0C447C;border-color:#0C447C}
+.btn.ap{background:#1D9E75;color:#fff;border-color:#1D9E75;box-shadow:0 2px 6px rgba(29,158,117,.25)}
+.btn.ap:hover{background:#0F6E56;border-color:#0F6E56}
+.btn.rj{background:#E24B4A;color:#fff;border-color:#E24B4A;box-shadow:0 2px 6px rgba(226,75,74,.2)}
+.btn.rj:hover{background:#A32D2D;border-color:#A32D2D}
+.btn.wn{background:#FAECE7;color:#712B13;border-color:#D85A30;font-weight:600}
 .btn.wn:hover{background:#F5C4B3}
-.btn.sm{padding:4px 10px;font-size:11px}
-.btn.dg{border-color:#E24B4A;color:#A32D2D}
-.btn.dg:hover{background:#FCEBEB}
-.btn.gray{border-color:#ccc;color:#666}
-.btn.gray:hover{background:#f5f4f0}
-.rbtns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.avt{width:28px;height:28px;border-radius:50%;background:#E6F1FB;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0}
-.badge{display:inline-block;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:500}
+.btn.sm{padding:7px 16px;font-size:13px;border-radius:9px;border-width:1.5px}
+.btn.dg{background:#FCEBEB;border-color:#E24B4A;color:#A32D2D;border-width:1.5px}
+.btn.dg:hover{background:#F7C1C1}
+.btn.gray{border-color:#bbb;color:#555;background:#f2f1ed;border-width:1.5px}
+.btn.gray:hover{background:#e5e3de}
+.rbtns{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.avt{width:34px;height:34px;border-radius:50%;background:#E6F1FB;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+/* ── 배지 ── */
+.badge{display:inline-block;padding:4px 11px;border-radius:100px;font-size:13px;font-weight:700}
 .te{background:#E6F1FB;color:#0C447C}
 .th2{background:#FAECE7;color:#712B13}
 .tu{background:#E1F5EE;color:#085041}
-.sp{background:#FAEEDA;color:#633806}
-.sa{background:#E1F5EE;color:#085041}
-.sr{background:#FCEBEB;color:#A32D2D}
-.sc2{background:#f5f4f0;color:#666}
-.tbl{width:100%;border-collapse:collapse;font-size:12px}
-.tbl th{text-align:left;padding:6px 8px;border-bottom:0.5px solid rgba(0,0,0,.12);color:#666;font-weight:500;white-space:nowrap}
-.tbl td{padding:6px 8px;border-bottom:0.5px solid rgba(0,0,0,.06);vertical-align:middle}
+.sp{background:#FFF3CD;color:#856404;border:1.5px solid #FFD966}
+.sa{background:#D4EDDA;color:#155724;border:1.5px solid #5CB85C}
+.sr{background:#FCEBEB;color:#A32D2D;border:1.5px solid #E24B4A}
+.sc2{background:#eceae6;color:#555;border:1.5px solid #bbb}
+/* ── 테이블 ── */
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{text-align:left;padding:10px 12px;border-bottom:1.5px solid rgba(0,0,0,.1);color:#444;font-weight:700;white-space:nowrap;background:#f8f7f4}
+.tbl td{padding:10px 12px;border-bottom:1px solid rgba(0,0,0,.06);vertical-align:middle}
 .tbl tr:last-child td{border-bottom:none}
-.tbl tr.pr{background:#fafaf8}
-.tbl tr.cancelled td{opacity:.5}
-.ifrm{background:#f5f4f0;border-radius:8px;padding:.75rem;margin-top:.5rem;display:none}
+.tbl tr.pr{background:#fffbf0}
+.tbl tr.cancelled td{opacity:.4;text-decoration:line-through}
+.ifrm{background:#f2f1ed;border-radius:10px;padding:1.125rem;margin-top:.75rem;display:none;border:1px solid rgba(0,0,0,.08)}
 .ifrm.open{display:block}
-.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.sc{background:#f5f4f0;border-radius:8px;padding:.875rem 1rem}
-.emp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid rgba(0,0,0,.06)}
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.sc{background:#fff;border-radius:12px;padding:1.125rem 1.375rem;border:1px solid rgba(0,0,0,.08)}
+.emp-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid rgba(0,0,0,.06)}
 .emp-row:last-child{border-bottom:none}
-.hol-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid rgba(0,0,0,.06)}
+.hol-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.06)}
 .hol-row:last-child{border-bottom:none}
-.person-avt{width:44px;height:44px;border-radius:50%;background:#E6F1FB;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:500}
-.bal3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.balc{background:#f5f4f0;border-radius:8px;padding:.75rem 1rem}
-.alert-box{border-radius:8px;padding:.75rem 1rem;font-size:12px;line-height:1.6;display:flex;gap:8px}
-.a-warn{background:#FAECE7;color:#712B13;border:0.5px solid #F0997B}
-.a-ok{background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5}
-.a-none{background:#f5f4f0;border:0.5px solid rgba(0,0,0,.1)}
-.latest-banner{border-radius:8px;padding:.625rem 1rem;font-size:12px;border:0.5px solid rgba(0,0,0,.1);background:#f5f4f0;display:flex;align-items:center;gap:10px}
-.req-card{background:#fff;border:0.5px solid rgba(0,0,0,.1);border-radius:12px;padding:1rem 1.25rem}
-.req-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:500}
-.req-body{margin-top:.875rem;display:none}
+.person-avt{width:52px;height:52px;border-radius:50%;background:#E6F1FB;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700}
+.bal3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.balc{background:#f2f1ed;border-radius:10px;padding:1rem 1.125rem}
+.alert-box{border-radius:10px;padding:1rem 1.125rem;font-size:14px;line-height:1.65;display:flex;gap:10px}
+.a-warn{background:#FAECE7;color:#712B13;border:1.5px solid #F0997B}
+.a-ok{background:#E1F5EE;color:#085041;border:1.5px solid #5DCAA5}
+.a-none{background:#f2f1ed;border:1px solid rgba(0,0,0,.1)}
+.latest-banner{border-radius:10px;padding:.875rem 1.125rem;font-size:14px;border:1px solid rgba(0,0,0,.1);background:#f2f1ed;display:flex;align-items:center;gap:10px}
+/* ── 신청 폼 ── */
+.req-card{background:#fff;border:1.5px solid rgba(0,0,0,.1);border-radius:14px;padding:1.5rem 1.75rem}
+.req-toggle{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:16px;font-weight:700;padding:.25rem 0}
+.req-toggle:hover{color:#185FA5}
+.req-body{margin-top:1.125rem;display:none}
 .req-body.open{display:block}
-.type-tabs{display:flex;gap:6px;margin-bottom:.875rem}
-.ttype{padding:5px 14px;font-size:12px;border:0.5px solid rgba(0,0,0,.15);border-radius:8px;cursor:pointer;color:#666}
-.ttype:hover{background:#f5f4f0}
-.ttype.on{border-color:#185FA5;color:#0C447C;background:#E6F1FB;font-weight:500}
-.ttype.hol-on{border-color:#D85A30;color:#712B13;background:#FAECE7;font-weight:500}
-.ttype.use-on{border-color:#1D9E75;color:#085041;background:#E1F5EE;font-weight:500}
-.info-line{font-size:11px;color:#666;padding:.5rem .75rem;background:#f5f4f0;border-radius:6px;margin-bottom:.75rem;line-height:1.6}
-.warn-line{font-size:11px;color:#712B13;padding:.5rem .75rem;background:#FAECE7;border-radius:6px;margin-bottom:.75rem;border:0.5px solid #F0997B}
+.type-tabs{display:flex;gap:10px;margin-bottom:1.125rem}
+.ttype{padding:9px 20px;font-size:14px;font-weight:600;border:2px solid rgba(0,0,0,.13);border-radius:10px;cursor:pointer;color:#555;transition:all .15s}
+.ttype:hover{background:#eceae6;border-color:rgba(0,0,0,.22)}
+.ttype.on{border-color:#185FA5;color:#0C447C;background:#E6F1FB;font-weight:700}
+.ttype.hol-on{border-color:#D85A30;color:#712B13;background:#FAECE7;font-weight:700}
+.ttype.use-on{border-color:#1D9E75;color:#085041;background:#E1F5EE;font-weight:700}
+.info-line{font-size:13px;color:#444;padding:.75rem 1rem;background:#f2f1ed;border-radius:9px;margin-bottom:1rem;line-height:1.65;border-left:4px solid #185FA5}
+.warn-line{font-size:13px;color:#712B13;padding:.75rem 1rem;background:#FAECE7;border-radius:9px;margin-bottom:1rem;border-left:4px solid #D85A30}
 .time-sel{display:flex;gap:6px;align-items:center}
-.time-sel select{width:auto;min-width:80px}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:200}
+.time-sel select{width:auto;min-width:95px}
+/* ── 모달 ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:200}
 .overlay.show{display:flex}
-.modal{background:#fff;border-radius:12px;border:0.5px solid rgba(0,0,0,.1);padding:1.75rem;width:380px;max-width:95vw}
-.modal-title{font-size:15px;font-weight:500;margin-bottom:.375rem}
-.modal-sub{font-size:12px;color:#666;margin-bottom:1.25rem;line-height:1.6}
-.merr{font-size:12px;color:#A32D2D;margin-top:.5rem;min-height:16px}
-.confirm-box{background:#FCEBEB;border:0.5px solid #F09595;border-radius:8px;padding:.875rem 1rem;margin-bottom:1rem;font-size:12px;color:#A32D2D;line-height:1.6}
+.modal{background:#fff;border-radius:16px;border:1px solid rgba(0,0,0,.1);padding:2.25rem;width:420px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.14)}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:.5rem}
+.modal-sub{font-size:14px;color:#555;margin-bottom:1.5rem;line-height:1.65}
+.merr{font-size:13px;color:#A32D2D;margin-top:.625rem;min-height:18px;font-weight:500}
+.confirm-box{background:#FCEBEB;border:1.5px solid #F09595;border-radius:10px;padding:1.125rem 1.25rem;margin-bottom:1.375rem;font-size:14px;color:#A32D2D;line-height:1.75}
 .pwr{position:relative}
-.pwr input{padding-right:44px}
-.pweye{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;font-size:11px;color:#888;cursor:pointer;padding:2px 4px}
-.pw-hint{font-size:11px;margin-top:4px;min-height:14px}
-.loading{display:flex;align-items:center;justify-content:center;height:200px;color:#888;font-size:13px}
-.toast{position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:400}
+.pwr input{padding-right:56px}
+.pweye{position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;font-size:13px;color:#888;cursor:pointer;padding:3px 6px}
+.pw-hint{font-size:13px;margin-top:5px;min-height:18px;font-weight:500}
+.loading{display:flex;align-items:center;justify-content:center;height:200px;color:#888;font-size:15px}
+.toast{position:fixed;bottom:28px;right:28px;background:#1a1a1a;color:#fff;padding:13px 24px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:400;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,.25)}
 .toast.show{opacity:1}
-.reset-danger{background:#FCEBEB;border:0.5px solid #F09595;border-radius:8px;padding:1rem;margin-bottom:.875rem;font-size:12px;color:#A32D2D;line-height:1.7}
+.reset-danger{background:#FCEBEB;border:1.5px solid #F09595;border-radius:10px;padding:1.25rem;margin-bottom:1.125rem;font-size:14px;color:#A32D2D;line-height:1.75}
 </style>
 </head>
 <body>
@@ -140,7 +147,7 @@ textarea{resize:vertical;min-height:50px}
   <div class="main">
     <div class="topbar">
       <div class="tbtitle" id="tbtitle">대시보드</div>
-      <div class="rbtns" id="topbar-btns"></div>
+      <div class="rbtns" id="topbar-btns" style="gap:10px"></div>
     </div>
     <div class="content" id="content">
       <div class="page on" id="page-dash">
@@ -150,6 +157,9 @@ textarea{resize:vertical;min-height:50px}
       </div>
       <div class="page" id="page-approve">
         <div id="approve-alert-wrap" style="display:none;margin-bottom:.5rem"></div>
+        <div id="approve-readonly-banner" style="display:none;background:#FAEEDA;border:1.5px solid #FAC775;border-radius:10px;padding:.875rem 1.125rem;font-size:14px;color:#633806;margin-bottom:.75rem;font-weight:500">
+          관리자 모드에서는 신청 내역을 조회만 할 수 있습니다. 승인/반려는 승인자 로그인 후 가능합니다.
+        </div>
         <div class="card">
           <div class="ctitle">대기 중인 신청</div>
           <table class="tbl"><thead><tr><th>신청자</th><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>사유</th><th>처리</th></tr></thead><tbody id="pending-body"></tbody></table>
@@ -270,7 +280,7 @@ textarea{resize:vertical;min-height:50px}
     <div class="pwr"><input type="password" id="adm-pw" onkeydown="if(event.key==='Enter')doAdmLogin()"><button class="pweye" onclick="eyeTgl('adm-pw',this)">표시</button></div>
     <div class="merr" id="adm-err"></div>
     <div class="rbtns" style="margin-top:1rem">
-      <button class="btn pr" style="flex:1" onclick="doAdmLogin()">로그인</button>
+      <button class="btn pr" style="flex:1;padding:10px;font-size:14px;font-weight:600" onclick="doAdmLogin()">로그인</button>
       <button class="btn" onclick="closeM('adm-login')">취소</button>
     </div>
   </div>
@@ -285,7 +295,7 @@ textarea{resize:vertical;min-height:50px}
     <div class="pwr"><input type="password" id="apr-pw" onkeydown="if(event.key==='Enter')doAprLogin()"><button class="pweye" onclick="eyeTgl('apr-pw',this)">표시</button></div>
     <div class="merr" id="apr-err"></div>
     <div class="rbtns" style="margin-top:1rem">
-      <button class="btn ap" style="flex:1" onclick="doAprLogin()">로그인</button>
+      <button class="btn ap" style="flex:1;padding:10px;font-size:14px;font-weight:600" onclick="doAprLogin()">로그인</button>
       <button class="btn" onclick="closeM('apr-login')">취소</button>
     </div>
   </div>
@@ -306,7 +316,7 @@ textarea{resize:vertical;min-height:50px}
     </div>
     <div class="pw-hint" id="sp-hint"></div>
     <div class="rbtns" style="margin-top:1rem">
-      <button class="btn ap" style="flex:1" id="sp-btn" onclick="confirmSP()" disabled>설정 완료</button>
+      <button class="btn ap" style="flex:1;padding:10px;font-size:14px;font-weight:600" id="sp-btn" onclick="confirmSP()" disabled>설정 완료</button>
     </div>
   </div>
 </div>
@@ -333,7 +343,7 @@ textarea{resize:vertical;min-height:50px}
       <input type="text" id="reset-confirm-text" placeholder="리셋">
     </div>
     <div class="rbtns">
-      <button class="btn dg" style="flex:1" onclick="doFullReset()">전체 리셋 실행</button>
+      <button class="btn dg" style="flex:1;padding:10px;font-size:14px;font-weight:600" onclick="doFullReset()">전체 리셋 실행</button>
       <button class="btn" style="flex:1" onclick="closeM('full-reset-confirm')">취소</button>
     </div>
   </div>
@@ -347,7 +357,7 @@ textarea{resize:vertical;min-height:50px}
     <div class="confirm-box" id="restore-preview-text" style="line-height:1.8"></div>
     <div style="font-size:12px;color:#666;margin-bottom:1rem;margin-top:.75rem;line-height:1.7">현재 데이터를 백업 파일로 <strong>덮어씁니다.</strong><br>복원 전 현재 데이터를 먼저 백업 다운로드 해두세요.</div>
     <div class="rbtns">
-      <button class="btn pr" style="flex:1" onclick="confirmRestore()">복원 실행</button>
+      <button class="btn pr" style="flex:1;padding:10px;font-size:14px;font-weight:600" onclick="confirmRestore()">복원 실행</button>
       <button class="btn" style="flex:1" onclick="closeM('restore-confirm');pendingRestoreData=null">취소</button>
     </div>
   </div>
@@ -359,7 +369,7 @@ textarea{resize:vertical;min-height:50px}
     <div class="modal-sub" id="act-sub">코멘트 입력 (선택)</div>
     <textarea id="act-comment" placeholder="코멘트 (선택사항)"></textarea>
     <div class="rbtns" style="margin-top:1rem">
-      <button class="btn" id="act-btn" style="flex:1" onclick="confirmAction()">확인</button>
+      <button class="btn" id="act-btn" style="flex:1;padding:10px;font-size:14px;font-weight:600" onclick="confirmAction()">확인</button>
       <button class="btn" onclick="closeM('action')">취소</button>
     </div>
   </div>
@@ -391,7 +401,7 @@ textarea{resize:vertical;min-height:50px}
     <div class="modal-title">신청 취소</div>
     <div class="confirm-box">이 신청을 취소하겠습니까?<br>취소된 신청은 내역에 남습니다.</div>
     <div class="rbtns">
-      <button class="btn dg" style="flex:1" onclick="confirmCancelReq()">취소 확인</button>
+      <button class="btn dg" style="flex:1;padding:10px;font-size:14px;font-weight:600" onclick="confirmCancelReq()">신청 취소 확인</button>
       <button class="btn" style="flex:1" onclick="closeM('cancel-req')">돌아가기</button>
     </div>
   </div>
@@ -403,7 +413,7 @@ textarea{resize:vertical;min-height:50px}
     <div class="modal-title">삭제 확인</div>
     <div class="confirm-box" id="del-confirm-msg"></div>
     <div class="rbtns">
-      <button class="btn dg" style="flex:1" onclick="confirmDel()">삭제</button>
+      <button class="btn dg" style="flex:1;padding:10px;font-size:14px;font-weight:600" onclick="confirmDel()">삭제</button>
       <button class="btn" style="flex:1" onclick="closeM('del-confirm');pendingDelId=null">취소</button>
     </div>
   </div>
@@ -640,9 +650,9 @@ function logoutApr(){mode='user';applyMode();buildNav();goPage('dash');}
 function applyMode(){
   const badge=document.getElementById('mode-badge'),wrap=document.getElementById('topbar-btns');
   wrap.innerHTML='';
-  if(mode==='admin'){badge.className='lbadge lb-adm';badge.textContent='관리자';wrap.innerHTML=`<button class="btn sm" onclick="logoutAdm()">로그아웃</button>`;}
-  else if(mode==='approver'){badge.className='lbadge lb-apr';badge.textContent='승인자';wrap.innerHTML=`<button class="btn sm" onclick="logoutApr()">로그아웃</button>`;}
-  else{badge.className='lbadge lb-user';badge.textContent='일반';wrap.innerHTML=`<button class="btn sm" onclick="document.getElementById('apr-err').textContent='';openM('apr-login')">승인자 로그인</button><button class="btn sm" onclick="document.getElementById('adm-err').textContent='';openM('adm-login')">관리자</button>`;}
+  if(mode==='admin'){badge.className='lbadge lb-adm';badge.textContent='관리자';wrap.innerHTML=`<button class="btn sm wn" style="font-weight:600" onclick="logoutAdm()">로그아웃</button>`;}
+  else if(mode==='approver'){badge.className='lbadge lb-apr';badge.textContent='승인자';wrap.innerHTML=`<button class="btn sm" style="border-color:#1D9E75;color:#085041;font-weight:600" onclick="logoutApr()">로그아웃</button>`;}
+  else{badge.className='lbadge lb-user';badge.textContent='일반';wrap.innerHTML=`<button class="btn sm ap" style="font-weight:600" onclick="document.getElementById('apr-err').textContent='';openM('apr-login')">승인자 로그인</button><button class="btn sm pr" style="font-weight:600" onclick="document.getElementById('adm-err').textContent='';openM('adm-login')">관리자 로그인</button>`;}
 }
 
 function buildNav(){
@@ -704,16 +714,16 @@ function renderEmpPage(pid){
   else if(bal>0){alertHtml=`<div class="alert-box a-ok"><div style="color:#1D9E75;flex-shrink:0">✓</div><div>잔여 ${bal}h (${rf(bal/8).toFixed(1)}일) · 소멸 임박 없음${(pendingEarned>0||pendingUsed>0)?' · 미승인 '+(pendingEarned>0?'+'+pendingEarned+'h':'')+(pendingUsed>0?' -'+pendingUsed+'h':'')+' 포함':''}</div></div>`;}
   else{alertHtml=`<div class="alert-box a-none"><div style="color:#888">현재 잔여 대체휴무 없음</div></div>`;}
   const balHtml=`<div class="bal3">
-    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">대체휴무 잔여</div><div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap"><span style="font-size:20px;font-weight:500;color:${bc}">${bal}h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${(pendingEarned>0||pendingUsed>0)?`<div style="font-size:10px;color:#BA7517;margin-top:2px">미승인 ${pendingEarned>0?'+'+pendingEarned+'h':''}${pendingUsed>0?' -'+pendingUsed+'h':''} 포함</div>`:''} ${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료 · ${soon.diff}일 후</div>`:''}</div>
-    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">누적 적립 (승인)</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
-    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">사용 / 소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">대체휴무 잔여</div><div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap"><span style="font-size:24px;font-weight:700;color:${bc}">${bal}h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${(pendingEarned>0||pendingUsed>0)?`<div style="font-size:10px;color:#BA7517;margin-top:2px">미승인 ${pendingEarned>0?'+'+pendingEarned+'h':''}${pendingUsed>0?' -'+pendingUsed+'h':''} 포함</div>`:''} ${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료 · ${soon.diff}일 후</div>`:''}</div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">누적 적립 (승인)</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:24px;font-weight:700">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">사용 / 소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:24px;font-weight:700;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
   </div>`;
 
   /* request form */
   const reqFormHtml=`<div class="req-card">
-    <div class="req-toggle" onclick="toggleReqBody('${eid}')">
-      <span id="req-toggle-icon-${eid}" style="font-size:10px;color:#888">▶</span>
-      <span>신청</span>
+    <div class="req-toggle" onclick="toggleReqBody('${eid}')" style="padding:.5rem .75rem;background:#f5f4f0;border-radius:9px;margin:-.25rem -.5rem">
+      <span id="req-toggle-icon-${eid}" style="font-size:12px;color:#185FA5">▶</span>
+      <span style="color:#185FA5">+ 신청하기</span>
     </div>
     <div class="req-body" id="req-body-${eid}">
       <div class="type-tabs" id="type-tabs-${eid}">
@@ -751,7 +761,7 @@ function renderEmpPage(pid){
         <textarea id="rq-reason-${eid}" placeholder="근무 사유"></textarea>
       </div>
       <div id="rq-preview-${eid}" style="font-size:11px;color:#888;margin-bottom:.625rem"></div>
-      <button class="btn sm pr" onclick="submitReq('${eid}')">신청 제출</button>
+      <button class="btn pr" style="width:100%;padding:12px;font-size:15px;font-weight:700;margin-top:.625rem;background:#185FA5;color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 8px rgba(24,95,165,.3)" onclick="submitReq('${eid}')">✓ 신청 제출</button>
     </div>
   </div>`;
 
@@ -767,7 +777,7 @@ function renderEmpPage(pid){
     const isCancelled=r.status==='cancelled';
     const dStr=r.type==='use'?`<span style="color:${isCancelled?'#aaa':'#D85A30'};font-weight:500">-${r.hours}h</span>`:`<span style="color:${isExp?'#aaa':isCancelled?'#aaa':'#1D9E75'};font-weight:500${isExp?';text-decoration:line-through':''}">+${r.daehu}h</span>`;
     const exStr=r.expiry?`<span style="font-size:10px;color:${isExp?'#A32D2D':'#aaa'}">${r.expiry}${isExp?' 소멸':''}</span>`:'-';
-    const cancelBtn=r.status==='pending'?`<button class="btn sm gray" onclick="openCancelReq('${r.id}')">취소</button>`:'';
+    const cancelBtn=r.status==='pending'?`<button class="btn sm dg" onclick="openCancelReq('${r.id}')">✕ 신청취소</button>`:'';
     rows+=`<tr${r.status==='pending'?' class="pr"':isCancelled?' class="cancelled"':''}>
       <td><span class="badge ${tc[r.type]}">${tl[r.type]}</span></td>
       <td>${r.date}</td>
@@ -775,7 +785,8 @@ function renderEmpPage(pid){
       <td>${dStr}</td>
       <td>${exStr}</td>
       <td><span class="badge ${sc[r.status]}">${sl[r.status]}</span></td>
-      <td style="font-size:11px;color:#888;font-style:italic;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comment||'-'}</td>
+      <td style="font-size:11px;color:#888;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason||'-'}</td>
+      <td style="font-size:11px;color:#888;font-style:italic;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comment||'-'}</td>
       <td>${cancelBtn}</td>
     </tr>`;
   });
@@ -789,7 +800,7 @@ function renderEmpPage(pid){
     ${bannerHtml}${alertHtml}${balHtml}${reqFormHtml}
     <div class="card">
       <div class="ctitle">신청 및 근무 내역</div>
-      <table class="tbl"><thead><tr><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>만료일</th><th>상태</th><th>코멘트</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <table class="tbl"><thead><tr><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>만료일</th><th>상태</th><th>사유</th><th>코멘트</th><th></th></tr></thead><tbody>${rows}</tbody></table>
     </div>`;
   initReqForm(eid);
 }
@@ -1023,10 +1034,10 @@ function renderDash(){
   const soonN=alert15N;
   const thisM=REQUESTS.filter(r=>r.status==='approved'&&r.date&&r.date.startsWith(td.slice(0,7))&&r.type!=='use').length;
   document.getElementById('stat-row').innerHTML=`
-    <div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">전체 직원</div><div style="font-size:22px;font-weight:500">${EMPLOYEES.length}</div></div>
-    <div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">대기 신청</div><div style="font-size:22px;font-weight:500;color:${pending>0?'#BA7517':'inherit'}">${pending}</div></div>
-    <div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">소멸 임박</div><div style="font-size:22px;font-weight:500;color:${alert3N>0?'#A32D2D':alert15N>0?'#D85A30':'inherit'}">${alert15N}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${alert3N>0?'3일 이내 '+alert3N+'명':alert15N>0?'15일 이내':'없음'}</div></div>
-    <div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">이번달 승인</div><div style="font-size:22px;font-weight:500">${thisM}</div></div>`;
+    <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">전체 직원</div><div style="font-size:28px;font-weight:700">${EMPLOYEES.length}</div></div>
+    <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">대기 신청</div><div style="font-size:28px;font-weight:700;color:${pending>0?'#BA7517':'inherit'}">${pending}</div></div>
+    <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">소멸 임박</div><div style="font-size:28px;font-weight:700;color:${alert3N>0?'#A32D2D':alert15N>0?'#D85A30':'inherit'}">${alert15N}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${alert3N>0?'3일 이내 '+alert3N+'명':alert15N>0?'15일 이내':'없음'}</div></div>
+    <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">이번달 승인</div><div style="font-size:28px;font-weight:700">${thisM}</div></div>`;
   const g=document.getElementById('team-cards');g.innerHTML='';
   if(!EMPLOYEES.length){g.innerHTML='<div class="card" style="color:#888;font-size:12px">관리 설정에서 직원을 등록해주세요.</div>';return;}
   const tl={ext:'연장근무',hol:'휴일근무',use:'대체 사용'};
@@ -1047,9 +1058,9 @@ function renderDash(){
     </div>
     ${dashAlertHtml}
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">잔여 대체휴무</div><div style="display:flex;align-items:baseline;gap:3px;flex-wrap:wrap"><span style="font-size:18px;font-weight:500;color:${bc}">${bal}h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${(pendingEarned>0||pendingUsed>0)?`<div style="font-size:10px;color:#BA7517;margin-top:2px">미승인 ${pendingEarned>0?'+'+pendingEarned+'h':''}${pendingUsed>0?' -'+pendingUsed+'h':''} 포함</div>`:''} ${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료</div>`:''}</div>
-      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">누적 적립</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
-      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">사용/소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
+      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">잔여 대체휴무</div><div style="display:flex;align-items:baseline;gap:3px;flex-wrap:wrap"><span style="font-size:22px;font-weight:700;color:${bc}">${bal}h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${(pendingEarned>0||pendingUsed>0)?`<div style="font-size:10px;color:#BA7517;margin-top:2px">미승인 ${pendingEarned>0?'+'+pendingEarned+'h':''}${pendingUsed>0?' -'+pendingUsed+'h':''} 포함</div>`:''} ${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료</div>`:''}</div>
+      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">누적 적립</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:22px;font-weight:700">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
+      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">사용/소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:22px;font-weight:700;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
     </div>
     ${latestHtml}`;
     g.appendChild(d);
@@ -1077,6 +1088,9 @@ function renderApprovePage(){
       apBannerWrap.innerHTML='';apBannerWrap.style.display='none';
     }
   }
+  /* 관리자는 읽기전용 배너 표시 */
+  const roBanner=document.getElementById('approve-readonly-banner');
+  if(roBanner)roBanner.style.display=mode==='admin'?'block':'none';
   const tl={ext:'연장근무',hol:'휴일근무',use:'대체 사용'},tc={ext:'te',hol:'th2',use:'tu'};
   const pend=REQUESTS.filter(r=>r.status==='pending').sort((a,b)=>a.date.localeCompare(b.date));
   const done=REQUESTS.filter(r=>r.status==='approved'||r.status==='rejected');
@@ -1091,7 +1105,7 @@ function renderApprovePage(){
       <td style="font-size:11px;color:#888">${r.start_time&&r.end_time?r.start_time+'~'+r.end_time:r.hours+'h'}</td>
       <td>${ds}</td>
       <td style="font-size:11px;color:#888;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason||'-'}</td>
-      <td><div class="rbtns"><button class="btn sm ap" onclick="openAct('${r.id}','approved')">승인</button><button class="btn sm rj" onclick="openAct('${r.id}','rejected')">반려</button></div></td>`;
+      <td>${mode==='approver'?`<div class="rbtns"><button class="btn ap" style="padding:7px 16px;font-weight:600" onclick="openAct('${r.id}','approved')">✓ 승인</button><button class="btn rj" style="padding:7px 16px;font-weight:600" onclick="openAct('${r.id}','rejected')">✕ 반려</button></div>`:'<span style="font-size:11px;color:#aaa">승인자만 처리</span>'}</td>`;
     pb.appendChild(tr);
   });
   const db2=document.getElementById('done-body');db2.innerHTML='';
