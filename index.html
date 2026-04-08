@@ -470,16 +470,22 @@ function calcExtH(st,et,date){
 }
 function getExpiry(d){const[y,mo]=d.split('-').map(Number);let ey=y,em=mo+2;if(em>12){em-=12;ey++;}return`${ey}-${String(em).padStart(2,'0')}-${new Date(ey,em,0).getDate()}`;}
 function getBal(eid){
-  const td=today(),apr=REQUESTS.filter(r=>r.eid===eid&&r.status==='approved');
+  const td=today();
+  /* 승인된 것만 확정 잔여 계산 */
+  const apr=REQUESTS.filter(r=>r.eid===eid&&r.status==='approved');
   const earned=apr.filter(r=>r.type!=='use').reduce((a,r)=>a+r.daehu,0);
   const used=apr.filter(r=>r.type==='use').reduce((a,r)=>a+r.hours,0);
   const expired=apr.filter(r=>r.type!=='use'&&r.expiry&&r.expiry<td).reduce((a,r)=>a+r.daehu,0);
   const active=apr.filter(r=>r.type!=='use'&&r.expiry&&r.expiry>=td).reduce((a,r)=>a+r.daehu,0);
-  const bal=rf(Math.max(0,active-used));
+  /* 대기 중인 시간 (pending) */
+  const pendingEarned=REQUESTS.filter(r=>r.eid===eid&&r.status==='pending'&&r.type!=='use').reduce((a,r)=>a+r.daehu,0);
+  const pendingUsed=REQUESTS.filter(r=>r.eid===eid&&r.status==='pending'&&r.type==='use').reduce((a,r)=>a+r.hours,0);
+  /* 총 잔여 = 승인 잔여 + 대기 중 적립 - 대기 중 사용 */
+  const bal=rf(Math.max(0,active-used+pendingEarned-pendingUsed));
   const soon=apr.filter(r=>r.type!=='use'&&r.expiry&&r.expiry>=td)
     .map(r=>({ex:r.expiry,diff:Math.round((new Date(r.expiry)-new Date())/864e5)}))
     .filter(x=>x.diff<=30).sort((a,b)=>a.diff-b.diff);
-  return{bal,soon:soon[0]||null,expired:rf(expired),earned:rf(earned),used:rf(used)};
+  return{bal,soon:soon[0]||null,expired:rf(expired),earned:rf(earned),used:rf(used),pendingEarned:rf(pendingEarned),pendingUsed:rf(pendingUsed)};
 }
 function getLatest(eid){return REQUESTS.filter(r=>r.eid===eid&&r.status!=='cancelled').sort((a,b)=>b.created_at?.localeCompare(a.created_at||'')||0)[0]||null;}
 
@@ -636,7 +642,7 @@ function renderEmpPage(pid){
   if(!emp||!pg)return;
   pg.innerHTML='';
   const td=today();
-  const{bal,soon,expired,earned,used}=getBal(eid);
+  const{bal,soon,expired,earned,used,pendingEarned,pendingUsed}=getBal(eid);
   const bc=bal<=0?'#888':soon?'#D85A30':'#1D9E75';
   const latest=getLatest(eid);
   let bannerHtml='';
@@ -649,10 +655,10 @@ function renderEmpPage(pid){
   }
   let alertHtml='';
   if(soon){alertHtml=`<div class="alert-box a-warn"><div style="flex-shrink:0">!</div><div><strong>대체휴무 만료 임박</strong> · ${soon.diff}일 후 (${soon.ex})<br>잔여 ${bal}h을 기한 내 사용하세요.</div></div>`;}
-  else if(bal>0){alertHtml=`<div class="alert-box a-ok"><div style="color:#1D9E75;flex-shrink:0">✓</div><div>잔여 ${bal}h (${rf(bal/8).toFixed(1)}일) · 만료 임박 없음</div></div>`;}
+  else if(bal>0){alertHtml=`<div class="alert-box a-ok"><div style="color:#1D9E75;flex-shrink:0">✓</div><div>잔여 ${bal}h (${rf(bal/8).toFixed(1)}일) · 만료 임박 없음${(pendingEarned>0||pendingUsed>0)?' · 미승인 '+(pendingEarned>0?'+'+pendingEarned+'h':'')+(pendingUsed>0?' -'+pendingUsed+'h':'')+' 포함':''}</div></div>`;}
   else{alertHtml=`<div class="alert-box a-none"><div style="color:#888">현재 잔여 대체휴무 없음</div></div>`;}
   const balHtml=`<div class="bal3">
-    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">대체휴무 잔여</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500;color:${bc}">${bal}</span><span style="font-size:11px;color:#888">h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료 · ${soon.diff}일 후</div>`:''}</div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">대체휴무 잔여</div><div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap"><span style="font-size:20px;font-weight:500;color:${bc}">${bal}h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${(pendingEarned>0||pendingUsed>0)?`<div style="font-size:10px;color:#BA7517;margin-top:2px">미승인 ${pendingEarned>0?'+'+pendingEarned+'h':''}${pendingUsed>0?' -'+pendingUsed+'h':''} 포함</div>`:''} ${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료 · ${soon.diff}일 후</div>`:''}</div>
     <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">누적 적립 (승인)</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
     <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">사용 / 소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
   </div>`;
@@ -927,7 +933,7 @@ function renderDash(){
   if(!EMPLOYEES.length){g.innerHTML='<div class="card" style="color:#888;font-size:12px">관리 설정에서 직원을 등록해주세요.</div>';return;}
   const tl={ext:'연장근무',hol:'휴일근무',use:'대체 사용'};
   EMPLOYEES.forEach(emp=>{
-    const{bal,soon,expired,earned,used}=getBal(emp.id);
+    const{bal,soon,expired,earned,used,pendingEarned,pendingUsed}=getBal(emp.id);
     const bc=bal<=0?'#888':soon?'#D85A30':'#1D9E75';
     const latest=getLatest(emp.id);
     let latestHtml='';
@@ -941,7 +947,7 @@ function renderDash(){
       ${soon?`<span class="badge" style="background:#FAECE7;color:#712B13;font-size:10px">만료 임박</span>`:''}
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">잔여 대체휴무</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500;color:${bc}">${bal}</span><span style="font-size:11px;color:#888">h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료</div>`:''}</div>
+      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">잔여 대체휴무</div><div style="display:flex;align-items:baseline;gap:3px;flex-wrap:wrap"><span style="font-size:18px;font-weight:500;color:${bc}">${bal}h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${(pendingEarned>0||pendingUsed>0)?`<div style="font-size:10px;color:#BA7517;margin-top:2px">미승인 ${pendingEarned>0?'+'+pendingEarned+'h':''}${pendingUsed>0?' -'+pendingUsed+'h':''} 포함</div>`:''} ${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료</div>`:''}</div>
       <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">누적 적립</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
       <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">사용/소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
     </div>
