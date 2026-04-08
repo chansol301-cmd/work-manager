@@ -43,6 +43,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 label.fl{font-size:12px;color:#666;display:block;margin-bottom:3px}
 input,select,textarea{width:100%;padding:6px 8px;font-size:12px;border:0.5px solid rgba(0,0,0,.2);border-radius:8px;background:#fff;color:#1a1a1a;font-family:inherit}
 input[type=checkbox]{width:auto;margin:0;vertical-align:middle;cursor:pointer}
+input[type=date]{cursor:pointer}
 input:focus,select:focus,textarea:focus{outline:none;border-color:#185FA5}
 input:disabled,select:disabled{opacity:.45;cursor:default;pointer-events:none}
 textarea{resize:vertical;min-height:50px}
@@ -61,6 +62,8 @@ textarea{resize:vertical;min-height:50px}
 .btn.sm{padding:4px 10px;font-size:11px}
 .btn.dg{border-color:#E24B4A;color:#A32D2D}
 .btn.dg:hover{background:#FCEBEB}
+.btn.gray{border-color:#ccc;color:#666}
+.btn.gray:hover{background:#f5f4f0}
 .rbtns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .avt{width:28px;height:28px;border-radius:50%;background:#E6F1FB;color:#0C447C;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0}
 .badge{display:inline-block;padding:2px 8px;border-radius:100px;font-size:11px;font-weight:500}
@@ -70,11 +73,13 @@ textarea{resize:vertical;min-height:50px}
 .sp{background:#FAEEDA;color:#633806}
 .sa{background:#E1F5EE;color:#085041}
 .sr{background:#FCEBEB;color:#A32D2D}
+.sc2{background:#f5f4f0;color:#666}
 .tbl{width:100%;border-collapse:collapse;font-size:12px}
 .tbl th{text-align:left;padding:6px 8px;border-bottom:0.5px solid rgba(0,0,0,.12);color:#666;font-weight:500;white-space:nowrap}
 .tbl td{padding:6px 8px;border-bottom:0.5px solid rgba(0,0,0,.06);vertical-align:middle}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tr.pr{background:#fafaf8}
+.tbl tr.cancelled td{opacity:.5}
 .ifrm{background:#f5f4f0;border-radius:8px;padding:.75rem;margin-top:.5rem;display:none}
 .ifrm.open{display:block}
 .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
@@ -103,9 +108,11 @@ textarea{resize:vertical;min-height:50px}
 .ttype.use-on{border-color:#1D9E75;color:#085041;background:#E1F5EE;font-weight:500}
 .info-line{font-size:11px;color:#666;padding:.5rem .75rem;background:#f5f4f0;border-radius:6px;margin-bottom:.75rem;line-height:1.6}
 .warn-line{font-size:11px;color:#712B13;padding:.5rem .75rem;background:#FAECE7;border-radius:6px;margin-bottom:.75rem;border:0.5px solid #F0997B}
+.time-sel{display:flex;gap:6px;align-items:center}
+.time-sel select{width:auto;min-width:80px}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:200}
 .overlay.show{display:flex}
-.modal{background:#fff;border-radius:12px;border:0.5px solid rgba(0,0,0,.1);padding:1.75rem;width:360px;max-width:95vw}
+.modal{background:#fff;border-radius:12px;border:0.5px solid rgba(0,0,0,.1);padding:1.75rem;width:380px;max-width:95vw}
 .modal-title{font-size:15px;font-weight:500;margin-bottom:.375rem}
 .modal-sub{font-size:12px;color:#666;margin-bottom:1.25rem;line-height:1.6}
 .merr{font-size:12px;color:#A32D2D;margin-top:.5rem;min-height:16px}
@@ -117,10 +124,10 @@ textarea{resize:vertical;min-height:50px}
 .loading{display:flex;align-items:center;justify-content:center;height:200px;color:#888;font-size:13px}
 .toast{position:fixed;bottom:20px;right:20px;background:#1a1a1a;color:#fff;padding:10px 18px;border-radius:8px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:400}
 .toast.show{opacity:1}
+.reset-danger{background:#FCEBEB;border:0.5px solid #F09595;border-radius:8px;padding:1rem;margin-bottom:.875rem;font-size:12px;color:#A32D2D;line-height:1.7}
 </style>
 </head>
 <body>
-
 <div class="app">
   <div class="sb">
     <div class="logo">
@@ -142,26 +149,215 @@ textarea{resize:vertical;min-height:50px}
         <div id="team-cards"></div>
       </div>
       <div class="page" id="page-approve">
-        <div class="card"><div class="ctitle">대기 중인 신청</div><table class="tbl"><thead><tr><th>신청자</th><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>사유</th><th>처리</th></tr></thead><tbody id="pending-body"></tbody></table></div>
-        <div class="card"><div class="ctitle">처리 완료</div><table class="tbl"><thead><tr><th>신청자</th><th>유형</th><th>날짜</th><th>상태</th><th>코멘트</th><th></th></tr></thead><tbody id="done-body"></tbody></table></div>
+        <div class="card">
+          <div class="ctitle">대기 중인 신청</div>
+          <table class="tbl"><thead><tr><th>신청자</th><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>사유</th><th>처리</th></tr></thead><tbody id="pending-body"></tbody></table>
+        </div>
+        <div class="card">
+          <div class="ctitle">처리 완료</div>
+          <table class="tbl"><thead><tr><th>신청자</th><th>유형</th><th>날짜</th><th>상태</th><th>코멘트</th><th></th></tr></thead><tbody id="done-body"></tbody></table>
+        </div>
       </div>
       <div class="page" id="page-mgmt">
-        <div class="card"><div class="ctitle">기본 정보</div><div class="fg c2"><div><label class="fl">사업명</label><input type="text" id="cfg-biz"></div><div><label class="fl">사업 국가</label><input type="text" id="cfg-country"></div></div><button class="btn sm pr" onclick="saveConfig()">저장</button></div>
-        <div class="card"><div class="ctitle">요일별 근무시간 <span style="font-size:11px;font-weight:400;color:#888">(24h · 30분 단위)</span></div><div class="fg c7" id="sched-grid"></div><div style="font-size:11px;color:#888;margin-top:.25rem">비워두면 해당 요일은 휴무</div><button class="btn sm pr" style="margin-top:.75rem" onclick="saveConfig()">저장</button></div>
-        <div class="card"><div class="ctitle">점심시간</div><div class="fg c2" style="max-width:280px"><div><label class="fl">시작</label><input type="time" id="cfg-ls"></div><div><label class="fl">종료</label><input type="time" id="cfg-le"></div></div><button class="btn sm pr" onclick="saveConfig()">저장</button></div>
-        <div class="card"><div class="ctitle">공휴일</div><div id="hol-list"></div><div class="ifrm" id="hol-form"><div class="fg c2" style="max-width:360px"><div><label class="fl">날짜</label><input type="text" id="new-hol-d" placeholder="2026-05-05"></div><div><label class="fl">이름</label><input type="text" id="new-hol-n" placeholder="어린이날"></div></div><div class="rbtns"><button class="btn sm pr" onclick="addHol()">추가</button><button class="btn sm" onclick="toggleF('hol-form')">취소</button></div></div><div id="hol-add-wrap" style="margin-top:.75rem;display:none"><button class="btn sm" onclick="toggleF('hol-form')">+ 추가</button></div></div>
-        <div class="card"><div class="ctitle">직원 정보</div><div id="emp-list"></div><div class="ifrm" id="emp-form"><div class="fg c2"><div><label class="fl">이름</label><input type="text" id="new-emp-n" placeholder="홍길동"></div><div><label class="fl">직함</label><input type="text" id="new-emp-r" placeholder="팀원"></div></div><div class="rbtns"><button class="btn sm pr" onclick="addEmp()">추가</button><button class="btn sm" onclick="toggleF('emp-form')">취소</button></div></div><div id="emp-add-wrap" style="margin-top:.75rem;display:none"><button class="btn sm" onclick="toggleF('emp-form')">+ 직원 추가</button></div></div>
-        <div id="adm-extra" style="display:none"><div class="card"><div class="ctitle">승인자 비밀번호 초기화</div><div style="font-size:12px;color:#666;margin-bottom:.75rem;line-height:1.7">승인자 비밀번호를 <strong>0000</strong>으로 초기화합니다.</div><button class="btn sm wn" onclick="openM('reset-confirm')">초기화</button></div></div>
+        <div class="card">
+          <div class="ctitle">기본 정보</div>
+          <div class="fg c2">
+            <div><label class="fl">사업명</label><input type="text" id="cfg-biz"></div>
+            <div><label class="fl">사업 국가</label><input type="text" id="cfg-country"></div>
+          </div>
+          <button class="btn sm pr" onclick="saveConfig()">저장</button>
+        </div>
+        <div class="card">
+          <div class="ctitle">요일별 근무시간 <span style="font-size:11px;font-weight:400;color:#888">(24h · 30분 단위)</span></div>
+          <div class="fg c7" id="sched-grid"></div>
+          <div style="font-size:11px;color:#888;margin-top:.25rem">비워두면 해당 요일은 휴무</div>
+          <button class="btn sm pr" style="margin-top:.75rem" onclick="saveConfig()">저장</button>
+        </div>
+        <div class="card">
+          <div class="ctitle">점심시간</div>
+          <div style="display:flex;gap:16px;align-items:center;margin-bottom:.75rem">
+            <div><label class="fl">시작</label><div class="time-sel" id="cfg-ls-sel"></div></div>
+            <div><label class="fl">종료</label><div class="time-sel" id="cfg-le-sel"></div></div>
+          </div>
+          <button class="btn sm pr" onclick="saveConfig()">저장</button>
+        </div>
+        <div class="card">
+          <div class="ctitle">공휴일</div>
+          <div id="hol-list"></div>
+          <div class="ifrm" id="hol-form">
+            <div class="fg c2" style="max-width:360px">
+              <div><label class="fl">날짜</label><input type="date" id="new-hol-d"></div>
+              <div><label class="fl">이름</label><input type="text" id="new-hol-n" placeholder="어린이날"></div>
+            </div>
+            <div class="rbtns">
+              <button class="btn sm pr" onclick="addHol()">추가</button>
+              <button class="btn sm" onclick="toggleF('hol-form')">취소</button>
+            </div>
+          </div>
+          <div id="hol-add-wrap" style="margin-top:.75rem;display:none">
+            <button class="btn sm" onclick="toggleF('hol-form')">+ 추가</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ctitle">직원 정보</div>
+          <div id="emp-list"></div>
+          <div class="ifrm" id="emp-form">
+            <div class="fg c2">
+              <div><label class="fl">이름</label><input type="text" id="new-emp-n" placeholder="홍길동"></div>
+              <div><label class="fl">직함</label><input type="text" id="new-emp-r" placeholder="팀원"></div>
+            </div>
+            <div class="rbtns">
+              <button class="btn sm pr" onclick="addEmp()">추가</button>
+              <button class="btn sm" onclick="toggleF('emp-form')">취소</button>
+            </div>
+          </div>
+          <div id="emp-add-wrap" style="margin-top:.75rem;display:none">
+            <button class="btn sm" onclick="toggleF('emp-form')">+ 직원 추가</button>
+          </div>
+        </div>
+        <div id="adm-extra" style="display:none">
+          <div class="card">
+            <div class="ctitle">승인자 비밀번호 초기화</div>
+            <div style="font-size:12px;color:#666;margin-bottom:.75rem;line-height:1.7">승인자 비밀번호를 <strong>0000</strong>으로 초기화합니다.</div>
+            <button class="btn sm wn" onclick="openM('reset-confirm')">초기화</button>
+          </div>
+          <div class="card" style="margin-top:1rem">
+            <div class="ctitle" style="color:#A32D2D">전체 데이터 리셋</div>
+            <div class="reset-danger">
+              <strong>경고:</strong> 모든 직원, 신청 내역, 설정이 삭제됩니다.<br>
+              이 작업은 되돌릴 수 없습니다.
+            </div>
+            <button class="btn sm dg" onclick="openM('full-reset-confirm')">전체 리셋</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="overlay" id="m-adm-login"><div class="modal"><div class="modal-title">관리자 로그인</div><div class="modal-sub">기본 비밀번호: <strong>7598</strong></div><label class="fl">비밀번호</label><div class="pwr"><input type="password" id="adm-pw" onkeydown="if(event.key==='Enter')doAdmLogin()"><button class="pweye" onclick="eyeTgl('adm-pw',this)">표시</button></div><div class="merr" id="adm-err"></div><div class="rbtns" style="margin-top:1rem"><button class="btn pr" style="flex:1" onclick="doAdmLogin()">로그인</button><button class="btn" onclick="closeM('adm-login')">취소</button></div></div></div>
-<div class="overlay" id="m-apr-login"><div class="modal"><div class="modal-title">승인자 로그인</div><div class="modal-sub">승인자로 로그인합니다.</div><label class="fl">비밀번호</label><div class="pwr"><input type="password" id="apr-pw" onkeydown="if(event.key==='Enter')doAprLogin()"><button class="pweye" onclick="eyeTgl('apr-pw',this)">표시</button></div><div class="merr" id="apr-err"></div><div class="rbtns" style="margin-top:1rem"><button class="btn ap" style="flex:1" onclick="doAprLogin()">로그인</button><button class="btn" onclick="closeM('apr-login')">취소</button></div></div></div>
-<div class="overlay" id="m-set-pw"><div class="modal"><div class="modal-title">승인자 비밀번호 설정</div><div class="modal-sub">초기 비밀번호가 감지됐습니다.<br>새 비밀번호를 설정해주세요.</div><div style="margin-bottom:.75rem"><label class="fl">새 비밀번호</label><div class="pwr"><input type="password" id="sp1" oninput="chkSP()"><button class="pweye" onclick="eyeTgl('sp1',this)">표시</button></div></div><div style="margin-bottom:.5rem"><label class="fl">비밀번호 확인</label><div class="pwr"><input type="password" id="sp2" oninput="chkSP()" onkeydown="if(event.key==='Enter')confirmSP()"><button class="pweye" onclick="eyeTgl('sp2',this)">표시</button></div></div><div class="pw-hint" id="sp-hint"></div><div class="rbtns" style="margin-top:1rem"><button class="btn ap" style="flex:1" id="sp-btn" onclick="confirmSP()" disabled>설정 완료</button></div></div></div>
-<div class="overlay" id="m-reset-confirm"><div class="modal"><div class="modal-title">승인자 비밀번호 초기화</div><div class="confirm-box">정말 초기화하겠습니까?<br>비밀번호가 <strong>0000</strong>으로 초기화됩니다.</div><div class="rbtns"><button class="btn rj" style="flex:1" onclick="doResetApr()">초기화</button><button class="btn" style="flex:1" onclick="closeM('reset-confirm')">취소</button></div></div></div>
-<div class="overlay" id="m-action"><div class="modal"><div class="modal-title" id="act-title">승인</div><div class="modal-sub" id="act-sub">코멘트 입력 (선택)</div><textarea id="act-comment" placeholder="코멘트 (선택사항)"></textarea><div class="rbtns" style="margin-top:1rem"><button class="btn" id="act-btn" style="flex:1" onclick="confirmAction()">확인</button><button class="btn" onclick="closeM('action')">취소</button></div></div></div>
+<!-- 관리자 로그인 -->
+<div class="overlay" id="m-adm-login">
+  <div class="modal">
+    <div class="modal-title">관리자 로그인</div>
+    <div class="modal-sub">기본 비밀번호: <strong>7598</strong></div>
+    <label class="fl">비밀번호</label>
+    <div class="pwr"><input type="password" id="adm-pw" onkeydown="if(event.key==='Enter')doAdmLogin()"><button class="pweye" onclick="eyeTgl('adm-pw',this)">표시</button></div>
+    <div class="merr" id="adm-err"></div>
+    <div class="rbtns" style="margin-top:1rem">
+      <button class="btn pr" style="flex:1" onclick="doAdmLogin()">로그인</button>
+      <button class="btn" onclick="closeM('adm-login')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 승인자 로그인 -->
+<div class="overlay" id="m-apr-login">
+  <div class="modal">
+    <div class="modal-title">승인자 로그인</div>
+    <div class="modal-sub">승인자로 로그인합니다.</div>
+    <label class="fl">비밀번호</label>
+    <div class="pwr"><input type="password" id="apr-pw" onkeydown="if(event.key==='Enter')doAprLogin()"><button class="pweye" onclick="eyeTgl('apr-pw',this)">표시</button></div>
+    <div class="merr" id="apr-err"></div>
+    <div class="rbtns" style="margin-top:1rem">
+      <button class="btn ap" style="flex:1" onclick="doAprLogin()">로그인</button>
+      <button class="btn" onclick="closeM('apr-login')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 승인자 비번 설정 -->
+<div class="overlay" id="m-set-pw">
+  <div class="modal">
+    <div class="modal-title">승인자 비밀번호 설정</div>
+    <div class="modal-sub">초기 비밀번호가 감지됐습니다.<br>새 비밀번호를 설정해주세요.</div>
+    <div style="margin-bottom:.75rem">
+      <label class="fl">새 비밀번호</label>
+      <div class="pwr"><input type="password" id="sp1" oninput="chkSP()"><button class="pweye" onclick="eyeTgl('sp1',this)">표시</button></div>
+    </div>
+    <div style="margin-bottom:.5rem">
+      <label class="fl">비밀번호 확인</label>
+      <div class="pwr"><input type="password" id="sp2" oninput="chkSP()" onkeydown="if(event.key==='Enter')confirmSP()"><button class="pweye" onclick="eyeTgl('sp2',this)">표시</button></div>
+    </div>
+    <div class="pw-hint" id="sp-hint"></div>
+    <div class="rbtns" style="margin-top:1rem">
+      <button class="btn ap" style="flex:1" id="sp-btn" onclick="confirmSP()" disabled>설정 완료</button>
+    </div>
+  </div>
+</div>
+
+<!-- 승인자 비번 초기화 확인 -->
+<div class="overlay" id="m-reset-confirm">
+  <div class="modal">
+    <div class="modal-title">승인자 비밀번호 초기화</div>
+    <div class="confirm-box">정말 초기화하겠습니까?<br>비밀번호가 <strong>0000</strong>으로 초기화됩니다.</div>
+    <div class="rbtns">
+      <button class="btn rj" style="flex:1" onclick="doResetApr()">초기화</button>
+      <button class="btn" style="flex:1" onclick="closeM('reset-confirm')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 전체 리셋 확인 -->
+<div class="overlay" id="m-full-reset-confirm">
+  <div class="modal">
+    <div class="modal-title" style="color:#A32D2D">전체 데이터 리셋</div>
+    <div class="confirm-box">정말로 모든 데이터를 삭제하겠습니까?<br><br>삭제되는 항목:<br>- 전체 직원 정보<br>- 전체 신청 내역<br>- 공휴일 목록<br>- 모든 설정<br><br><strong>이 작업은 되돌릴 수 없습니다.</strong></div>
+    <div style="margin-bottom:1rem">
+      <label class="fl">확인을 위해 <strong>리셋</strong> 을 입력하세요</label>
+      <input type="text" id="reset-confirm-text" placeholder="리셋">
+    </div>
+    <div class="rbtns">
+      <button class="btn dg" style="flex:1" onclick="doFullReset()">전체 리셋 실행</button>
+      <button class="btn" style="flex:1" onclick="closeM('full-reset-confirm')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 승인/반려 -->
+<div class="overlay" id="m-action">
+  <div class="modal">
+    <div class="modal-title" id="act-title">승인</div>
+    <div class="modal-sub" id="act-sub">코멘트 입력 (선택)</div>
+    <textarea id="act-comment" placeholder="코멘트 (선택사항)"></textarea>
+    <div class="rbtns" style="margin-top:1rem">
+      <button class="btn" id="act-btn" style="flex:1" onclick="confirmAction()">확인</button>
+      <button class="btn" onclick="closeM('action')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 공휴일 수정 -->
+<div class="overlay" id="m-edit-hol">
+  <div class="modal">
+    <div class="modal-title">공휴일 수정</div>
+    <input type="hidden" id="edit-hol-orig">
+    <div style="margin-bottom:.75rem">
+      <label class="fl">날짜</label>
+      <input type="date" id="edit-hol-d">
+    </div>
+    <div style="margin-bottom:.75rem">
+      <label class="fl">이름</label>
+      <input type="text" id="edit-hol-n">
+    </div>
+    <div class="rbtns" style="margin-top:1rem">
+      <button class="btn pr" style="flex:1" onclick="saveEditHol()">저장</button>
+      <button class="btn" onclick="closeM('edit-hol')">취소</button>
+    </div>
+  </div>
+</div>
+
+<!-- 신청 취소 확인 -->
+<div class="overlay" id="m-cancel-req">
+  <div class="modal">
+    <div class="modal-title">신청 취소</div>
+    <div class="confirm-box">이 신청을 취소하겠습니까?<br>취소된 신청은 내역에 남습니다.</div>
+    <div class="rbtns">
+      <button class="btn dg" style="flex:1" onclick="confirmCancelReq()">취소 확인</button>
+      <button class="btn" style="flex:1" onclick="closeM('cancel-req')">돌아가기</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -173,12 +369,25 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 const DAYS=['월','화','수','목','금','토','일'];
 const DKEYS=['mon','tue','wed','thu','fri','sat','sun'];
 const APR_INIT='0000';
+const HOURS_OPTS=[];
+for(let h=0;h<24;h++){HOURS_OPTS.push(`${String(h).padStart(2,'0')}:00`);HOURS_OPTS.push(`${String(h).padStart(2,'0')}:30`);}
+
 let mode='user';
 let pendingAct=null;
+let pendingCancelId=null;
 let CFG={biz:'',country:'',lunch:{s:'12:00',e:'13:00'},schedule:{mon:{s:'09:00',e:'18:00'},tue:{s:'09:00',e:'18:00'},wed:{s:'09:00',e:'18:00'},thu:{s:'09:00',e:'18:00'},fri:{s:'09:00',e:'18:00'},sat:{s:'',e:''},sun:{s:'',e:''}},admin_pw:'7598',approver_pw:APR_INIT,approver_pw_set:false};
 let EMPLOYEES=[];
 let HOLIDAYS=[];
 let REQUESTS=[];
+
+function timeSelect(val,onChange){
+  const s=document.createElement('select');
+  s.style.cssText='width:90px;font-size:12px';
+  const empty=document.createElement('option');empty.value='';empty.textContent='—';s.appendChild(empty);
+  HOURS_OPTS.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;if(t===val)o.selected=true;s.appendChild(o);});
+  if(onChange)s.onchange=()=>onChange(s.value);
+  return s;
+}
 
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
 function toMin(t){if(!t||!t.includes(':'))return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
@@ -217,7 +426,7 @@ function getBal(eid){
     .filter(x=>x.diff<=30).sort((a,b)=>a.diff-b.diff);
   return{bal,soon:soon[0]||null,expired:rf(expired),earned:rf(earned),used:rf(used)};
 }
-function getLatest(eid){return REQUESTS.filter(r=>r.eid===eid).sort((a,b)=>b.created_at?.localeCompare(a.created_at||'')||0)[0]||null;}
+function getLatest(eid){return REQUESTS.filter(r=>r.eid===eid&&r.status!=='cancelled').sort((a,b)=>b.created_at?.localeCompare(a.created_at||'')||0)[0]||null;}
 
 async function loadAll(){
   const[cfgRes,empRes,holRes,reqRes]=await Promise.all([
@@ -234,21 +443,23 @@ async function loadAll(){
   }
   EMPLOYEES=empRes.data||[];
   HOLIDAYS=holRes.data||[];
-  REQUESTS=(reqRes.data||[]).map(r=>({...r,eid:r.eid,daehu:r.daehu,hours:r.hours}));
+  REQUESTS=(reqRes.data||[]).map(r=>({...r,eid:r.eid,daehu:parseFloat(r.daehu)||0,hours:parseFloat(r.hours)||0}));
   updateLogo();
 }
 
 async function saveConfig(){
   const sched={};
   DKEYS.forEach(k=>{
-    const s=document.getElementById('sched-s-'+k)?.value||'';
-    const e=document.getElementById('sched-e-'+k)?.value||'';
-    sched[k]={s,e};
+    const ss=document.getElementById('sched-s-'+k);
+    const se=document.getElementById('sched-e-'+k);
+    sched[k]={s:ss?.value||'',e:se?.value||''};
   });
   const biz=document.getElementById('cfg-biz')?.value||CFG.biz;
   const country=document.getElementById('cfg-country')?.value||CFG.country;
-  const ls=document.getElementById('cfg-ls')?.value||CFG.lunch.s;
-  const le=document.getElementById('cfg-le')?.value||CFG.lunch.e;
+  const lsEl=document.getElementById('cfg-ls-sel')?.querySelector('select');
+  const leEl=document.getElementById('cfg-le-sel')?.querySelector('select');
+  const ls=lsEl?.value||CFG.lunch.s;
+  const le=leEl?.value||CFG.lunch.e;
   CFG.biz=biz;CFG.country=country;CFG.lunch={s:ls,e:le};CFG.schedule=sched;
   await db.from('config').upsert({id:'main',biz,country,lunch_start:ls,lunch_end:le,schedule:sched,admin_pw:CFG.admin_pw,approver_pw:CFG.approver_pw,approver_pw_set:CFG.approver_pw_set});
   updateLogo();showToast('설정 저장됨');
@@ -301,6 +512,22 @@ async function doResetApr(){
   await db.from('config').upsert({id:'main',approver_pw:APR_INIT,approver_pw_set:false});
   closeM('reset-confirm');showToast('승인자 비밀번호 0000으로 초기화됨');
 }
+async function doFullReset(){
+  const txt=document.getElementById('reset-confirm-text').value.trim();
+  if(txt!=='리셋'){showToast('"리셋" 을 정확히 입력하세요');return;}
+  await Promise.all([
+    db.from('requests').delete().neq('id','__none__'),
+    db.from('employees').delete().neq('id','__none__'),
+    db.from('holidays').delete().neq('date','__none__'),
+    db.from('config').upsert({id:'main',biz:'',country:'',admin_pw:'7598',approver_pw:APR_INIT,approver_pw_set:false,schedule:CFG.schedule}),
+  ]);
+  REQUESTS=[];EMPLOYEES=[];HOLIDAYS=[];
+  CFG.biz='';CFG.country='';CFG.approver_pw=APR_INIT;CFG.approver_pw_set=false;
+  closeM('full-reset-confirm');
+  document.getElementById('reset-confirm-text').value='';
+  mode='user';applyMode();buildNav();goPage('dash');
+  showToast('전체 리셋 완료');
+}
 function logoutAdm(){mode='user';applyMode();buildNav();goPage('dash');}
 function logoutApr(){mode='user';applyMode();buildNav();goPage('dash');}
 
@@ -324,6 +551,11 @@ function buildNav(){
   sep();sec('관리');add('mgmt','관리 설정','nadm');
 }
 
+function updateLogo(){
+  document.getElementById('logo-name').textContent=CFG.biz||'근무 관리';
+  document.getElementById('logo-sub').textContent=CFG.country||'';
+}
+
 function goPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
@@ -341,6 +573,7 @@ function goPage(id){
   else if(id.startsWith('emp-'))renderEmpPage(id);
 }
 
+/* ── EMP PAGE ── */
 function renderEmpPage(pid){
   const eid=pid.replace('emp-','');
   const emp=EMPLOYEES.find(e=>e.id===eid);
@@ -363,27 +596,117 @@ function renderEmpPage(pid){
   if(soon){alertHtml=`<div class="alert-box a-warn"><div style="flex-shrink:0">!</div><div><strong>대체휴무 만료 임박</strong> · ${soon.diff}일 후 (${soon.ex})<br>잔여 ${bal}h을 기한 내 사용하세요.</div></div>`;}
   else if(bal>0){alertHtml=`<div class="alert-box a-ok"><div style="color:#1D9E75;flex-shrink:0">✓</div><div>잔여 ${bal}h (${rf(bal/8).toFixed(1)}일) · 만료 임박 없음</div></div>`;}
   else{alertHtml=`<div class="alert-box a-none"><div style="color:#888">현재 잔여 대체휴무 없음</div></div>`;}
-  const balHtml=`<div class="bal3"><div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">대체휴무 잔여</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500;color:${bc}">${bal}</span><span style="font-size:11px;color:#888">h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료 · ${soon.diff}일 후</div>`:''}</div><div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">누적 적립 (승인)</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div><div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">사용 / 소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div></div>`;
-  const reqFormHtml=`<div class="req-card"><div class="req-toggle" onclick="toggleReqBody('${eid}')"><span id="req-toggle-icon-${eid}" style="font-size:10px;color:#888">▶</span><span>근무 신청</span></div><div class="req-body" id="req-body-${eid}"><div class="type-tabs" id="type-tabs-${eid}"><div class="ttype" onclick="setType('${eid}','ext')">연장근무</div><div class="ttype" onclick="setType('${eid}','hol')">휴일근무</div><div class="ttype" onclick="setType('${eid}','use')">대체휴무 사용</div></div><div id="rq-info-${eid}" class="info-line" style="display:none"></div><div class="fg c3"><div><label class="fl">날짜</label><input type="text" id="rq-date-${eid}" placeholder="2026-04-07" onchange="onDateChange('${eid}')"></div><div id="rq-st-wrap-${eid}"><label class="fl">시작 (24h)</label><input type="time" id="rq-st-${eid}" value="19:00" onchange="updatePreview('${eid}')"></div><div id="rq-et-wrap-${eid}"><label class="fl">종료 (24h)</label><input type="time" id="rq-et-${eid}" value="21:00" onchange="updatePreview('${eid}')"></div></div><div id="rq-use-wrap-${eid}" style="display:none;margin-bottom:.75rem"><label class="fl">사용 시간 (30분 단위)</label><select id="rq-use-${eid}" style="max-width:220px"></select></div><div id="rq-leave-wrap-${eid}" style="display:none;margin-bottom:.75rem"><label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer"><input type="checkbox" id="rq-leave-${eid}" onchange="onDateChange('${eid}')"><span>연차일 근무 <span style="color:#888">(연차 중 업무 — 대체휴무 발생)</span></span></label></div><div class="fg" style="margin-bottom:.75rem"><label class="fl">사유</label><textarea id="rq-reason-${eid}" placeholder="근무 사유"></textarea></div><div id="rq-preview-${eid}" style="font-size:11px;color:#888;margin-bottom:.625rem"></div><button class="btn sm pr" onclick="submitReq('${eid}')">신청 제출</button></div></div>`;
+  const balHtml=`<div class="bal3">
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">대체휴무 잔여</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500;color:${bc}">${bal}</span><span style="font-size:11px;color:#888">h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료 · ${soon.diff}일 후</div>`:''}</div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">누적 적립 (승인)</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">사용 / 소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:500;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
+  </div>`;
+
+  /* request form */
+  const reqFormHtml=`<div class="req-card">
+    <div class="req-toggle" onclick="toggleReqBody('${eid}')">
+      <span id="req-toggle-icon-${eid}" style="font-size:10px;color:#888">▶</span>
+      <span>근무 신청</span>
+    </div>
+    <div class="req-body" id="req-body-${eid}">
+      <div class="type-tabs" id="type-tabs-${eid}">
+        <div class="ttype" onclick="setType('${eid}','ext')">연장근무</div>
+        <div class="ttype" onclick="setType('${eid}','hol')">휴일근무</div>
+        <div class="ttype" onclick="setType('${eid}','use')">대체휴무 사용</div>
+      </div>
+      <div id="rq-info-${eid}" class="info-line" style="display:none"></div>
+      <div class="fg c3">
+        <div>
+          <label class="fl">날짜</label>
+          <input type="date" id="rq-date-${eid}" onchange="onDateChange('${eid}')">
+        </div>
+        <div id="rq-st-wrap-${eid}">
+          <label class="fl">시작</label>
+          <div id="rq-st-sel-${eid}"></div>
+        </div>
+        <div id="rq-et-wrap-${eid}">
+          <label class="fl">종료</label>
+          <div id="rq-et-sel-${eid}"></div>
+        </div>
+      </div>
+      <div id="rq-use-wrap-${eid}" style="display:none;margin-bottom:.75rem">
+        <label class="fl">사용 시간 (30분 단위)</label>
+        <select id="rq-use-${eid}" style="max-width:220px"></select>
+      </div>
+      <div id="rq-leave-wrap-${eid}" style="display:none;margin-bottom:.75rem">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="rq-leave-${eid}" onchange="onDateChange('${eid}')">
+          <span>연차일 근무 <span style="color:#888">(연차 중 업무 — 대체휴무 발생)</span></span>
+        </label>
+      </div>
+      <div class="fg" style="margin-bottom:.75rem">
+        <label class="fl">사유</label>
+        <textarea id="rq-reason-${eid}" placeholder="근무 사유"></textarea>
+      </div>
+      <div id="rq-preview-${eid}" style="font-size:11px;color:#888;margin-bottom:.625rem"></div>
+      <button class="btn sm pr" onclick="submitReq('${eid}')">신청 제출</button>
+    </div>
+  </div>`;
+
+  /* history */
   const reqs=REQUESTS.filter(r=>r.eid===eid);
   const tl={ext:'연장근무',hol:'휴일근무',use:'대체 사용'};
   const tc={ext:'te',hol:'th2',use:'tu'};
-  const sl={pending:'대기',approved:'승인',rejected:'반려'};
-  const sc={pending:'sp',approved:'sa',rejected:'sr'};
+  const sl={pending:'대기',approved:'승인',rejected:'반려',cancelled:'취소'};
+  const sc={pending:'sp',approved:'sa',rejected:'sr',cancelled:'sc2'};
   let rows='';
   reqs.forEach(r=>{
-    const isExp=r.type!=='use'&&r.expiry&&r.expiry<td;
-    const dStr=r.type==='use'?`<span style="color:#D85A30;font-weight:500">-${r.hours}h</span>`:`<span style="color:${isExp?'#aaa':'#1D9E75'};font-weight:500${isExp?';text-decoration:line-through':''}">+${r.daehu}h</span>`;
+    const isExp=r.type!=='use'&&r.expiry&&r.expiry<td&&r.status==='approved';
+    const isCancelled=r.status==='cancelled';
+    const dStr=r.type==='use'?`<span style="color:${isCancelled?'#aaa':'#D85A30'};font-weight:500">-${r.hours}h</span>`:`<span style="color:${isExp?'#aaa':isCancelled?'#aaa':'#1D9E75'};font-weight:500${isExp?';text-decoration:line-through':''}">+${r.daehu}h</span>`;
     const exStr=r.expiry?`<span style="font-size:10px;color:${isExp?'#A32D2D':'#aaa'}">${r.expiry}${isExp?' 소멸':''}</span>`:'-';
-    rows+=`<tr${r.status==='pending'?' class="pr"':''}><td><span class="badge ${tc[r.type]}">${tl[r.type]}</span></td><td>${r.date}</td><td style="font-size:11px;color:#888">${r.type==='use'?r.hours+'h':r.start_time+'~'+r.end_time}</td><td>${dStr}</td><td>${exStr}</td><td><span class="badge ${sc[r.status]}">${sl[r.status]}</span></td><td style="font-size:11px;color:#888;font-style:italic;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comment||'-'}</td></tr>`;
+    const cancelBtn=r.status==='pending'?`<button class="btn sm gray" onclick="openCancelReq('${r.id}')">취소</button>`:'';
+    rows+=`<tr${r.status==='pending'?' class="pr"':isCancelled?' class="cancelled"':''}>
+      <td><span class="badge ${tc[r.type]}">${tl[r.type]}</span></td>
+      <td>${r.date}</td>
+      <td style="font-size:11px;color:#888">${r.type==='use'?r.hours+'h':r.start_time+'~'+r.end_time}</td>
+      <td>${dStr}</td>
+      <td>${exStr}</td>
+      <td><span class="badge ${sc[r.status]}">${sl[r.status]}</span></td>
+      <td style="font-size:11px;color:#888;font-style:italic;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.comment||'-'}</td>
+      <td>${cancelBtn}</td>
+    </tr>`;
   });
-  if(!rows)rows='<tr><td colspan="7" style="text-align:center;color:#888;padding:.875rem">신청 내역 없음</td></tr>';
-  pg.innerHTML=`<div style="display:flex;align-items:center;gap:12px"><div class="person-avt">${emp.name.slice(0,2)}</div><div><div style="font-size:16px;font-weight:500">${emp.name}</div><div style="font-size:12px;color:#888">${emp.role}</div></div></div>${bannerHtml}${alertHtml}${balHtml}${reqFormHtml}<div class="card"><div class="ctitle">신청 및 근무 내역</div><table class="tbl"><thead><tr><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>만료일</th><th>상태</th><th>코멘트</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  if(!rows)rows='<tr><td colspan="8" style="text-align:center;color:#888;padding:.875rem">신청 내역 없음</td></tr>';
+
+  pg.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="person-avt">${emp.name.slice(0,2)}</div>
+      <div><div style="font-size:16px;font-weight:500">${emp.name}</div><div style="font-size:12px;color:#888">${emp.role}</div></div>
+    </div>
+    ${bannerHtml}${alertHtml}${balHtml}${reqFormHtml}
+    <div class="card">
+      <div class="ctitle">신청 및 근무 내역</div>
+      <table class="tbl"><thead><tr><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>만료일</th><th>상태</th><th>코멘트</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
   initReqForm(eid);
+}
+
+/* 신청 취소 */
+function openCancelReq(id){pendingCancelId=id;openM('cancel-req');}
+async function confirmCancelReq(){
+  if(!pendingCancelId)return;
+  const{error}=await db.from('requests').update({status:'cancelled'}).eq('id',pendingCancelId);
+  if(error){showToast('오류: '+error.message);return;}
+  const r=REQUESTS.find(x=>x.id===pendingCancelId);
+  if(r)r.status='cancelled';
+  pendingCancelId=null;closeM('cancel-req');
+  const curPage=document.querySelector('.page.on');
+  if(curPage)renderEmpPage(curPage.id.replace('page-','emp-'));
+  buildNav();renderDash();showToast('신청이 취소됐습니다');
 }
 
 let empTypes={};
 function initReqForm(eid){
+  const stSel=document.getElementById('rq-st-sel-'+eid);
+  const etSel=document.getElementById('rq-et-sel-'+eid);
+  if(stSel){stSel.innerHTML='';stSel.appendChild(timeSelect('19:00',()=>updatePreview(eid)));}
+  if(etSel){etSel.innerHTML='';etSel.appendChild(timeSelect('21:00',()=>updatePreview(eid)));}
   const sel=document.getElementById('rq-use-'+eid);
   if(sel){sel.innerHTML='';for(let h=0.5;h<=16;h+=0.5){const o=document.createElement('option');o.value=h;o.textContent=`${h}h`;sel.appendChild(o);}}
   setType(eid,'ext');
@@ -403,6 +726,7 @@ function setType(eid,type){
   if(lw)lw.style.display=isHol?'block':'none';
   onDateChange(eid);updatePreview(eid);
 }
+function getSelVal(containerId){return document.getElementById(containerId)?.querySelector('select')?.value||'';}
 function onDateChange(eid){
   const type=empTypes[eid]||'ext',date=document.getElementById('rq-date-'+eid)?.value||'';
   const infoEl=document.getElementById('rq-info-'+eid);if(!infoEl)return;
@@ -424,7 +748,7 @@ function updatePreview(eid){
   const type=empTypes[eid]||'ext',el=document.getElementById('rq-preview-'+eid);if(!el)return;
   if(type==='use'){el.textContent='';return;}
   const date=document.getElementById('rq-date-'+eid)?.value||'';
-  const st=document.getElementById('rq-st-'+eid)?.value||'',et=document.getElementById('rq-et-'+eid)?.value||'';
+  const st=getSelVal('rq-st-sel-'+eid),et=getSelVal('rq-et-sel-'+eid);
   if(!st||!et){el.textContent='';return;}
   if(type==='ext'){const h=calcExtH(st,et,date),total=calcH(st,et);el.textContent=`입력 ${total}h → 연장근무 ${h}h (점심 차감·공식 근무 외)`;}
   else{const h=calcH(st,et);el.textContent=`실근무 ${h}h (점심 차감) → 대체휴무 적립 예정 ${h}h`;}
@@ -441,7 +765,8 @@ async function submitReq(eid){
   let hours,daehu,expiry2=null,st='',et='',isLeave=false;
   if(type==='use'){hours=parseFloat(document.getElementById('rq-use-'+eid)?.value||'4');daehu=-hours;}
   else{
-    st=document.getElementById('rq-st-'+eid)?.value||'';et=document.getElementById('rq-et-'+eid)?.value||'';
+    st=getSelVal('rq-st-sel-'+eid);et=getSelVal('rq-et-sel-'+eid);
+    if(!st||!et){showToast('시작/종료 시간을 선택하세요');return;}
     if(type==='ext'){hours=calcExtH(st,et,date);}
     else{const lc=document.getElementById('rq-leave-'+eid);isLeave=lc&&lc.checked;hours=calcH(st,et);}
     daehu=hours;expiry2=getExpiry(date);
@@ -449,17 +774,22 @@ async function submitReq(eid){
   if(hours<=0&&type!=='use'){showToast('유효한 시간을 확인해주세요');return;}
   const{data,error}=await db.from('requests').insert({eid,type,date,start_time:st,end_time:et,hours,daehu,reason,status:'pending',comment:'',expiry:expiry2,is_leave:isLeave}).select().single();
   if(error){showToast('오류: '+error.message);return;}
-  REQUESTS.unshift(data);
+  REQUESTS.unshift({...data,daehu:parseFloat(data.daehu)||0,hours:parseFloat(data.hours)||0});
   buildNav();renderEmpPage('emp-'+eid);showToast('신청이 제출됐습니다');
 }
 
+/* ── DASHBOARD ── */
 function renderDash(){
   document.getElementById('dash-loading').style.display='none';
   document.getElementById('stat-row').style.display='grid';
   const td=today(),pending=REQUESTS.filter(r=>r.status==='pending').length;
   const soonN=EMPLOYEES.filter(e=>getBal(e.id).soon).length;
   const thisM=REQUESTS.filter(r=>r.status==='approved'&&r.date&&r.date.startsWith(td.slice(0,7))&&r.type!=='use').length;
-  document.getElementById('stat-row').innerHTML=`<div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">전체 직원</div><div style="font-size:22px;font-weight:500">${EMPLOYEES.length}</div><div style="font-size:10px;color:#aaa">명</div></div><div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">대기 신청</div><div style="font-size:22px;font-weight:500;color:${pending>0?'#BA7517':'inherit'}">${pending}</div><div style="font-size:10px;color:#aaa">건</div></div><div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">만료 임박</div><div style="font-size:22px;font-weight:500;color:${soonN>0?'#D85A30':'inherit'}">${soonN}</div><div style="font-size:10px;color:#aaa">명</div></div><div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">이번달 승인</div><div style="font-size:22px;font-weight:500">${thisM}</div><div style="font-size:10px;color:#aaa">건</div></div>`;
+  document.getElementById('stat-row').innerHTML=`
+    <div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">전체 직원</div><div style="font-size:22px;font-weight:500">${EMPLOYEES.length}</div></div>
+    <div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">대기 신청</div><div style="font-size:22px;font-weight:500;color:${pending>0?'#BA7517':'inherit'}">${pending}</div></div>
+    <div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">만료 임박</div><div style="font-size:22px;font-weight:500;color:${soonN>0?'#D85A30':'inherit'}">${soonN}</div></div>
+    <div class="sc"><div style="font-size:11px;color:#888;margin-bottom:5px">이번달 승인</div><div style="font-size:22px;font-weight:500">${thisM}</div></div>`;
   const g=document.getElementById('team-cards');g.innerHTML='';
   if(!EMPLOYEES.length){g.innerHTML='<div class="card" style="color:#888;font-size:12px">관리 설정에서 직원을 등록해주세요.</div>';return;}
   const tl={ext:'연장근무',hol:'휴일근무',use:'대체 사용'};
@@ -472,21 +802,38 @@ function renderDash(){
     const d=document.createElement('div');
     d.style.cssText='background:#fff;border:0.5px solid rgba(0,0,0,.1);border-radius:12px;padding:1rem 1.25rem;margin-bottom:8px;cursor:pointer';
     d.onclick=()=>goPage('emp-'+emp.id);
-    d.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem"><div class="avt">${emp.name.slice(0,2)}</div><div style="flex:1"><div style="font-size:13px;font-weight:500">${emp.name}</div><div style="font-size:11px;color:#888">${emp.role}</div></div>${soon?`<span class="badge" style="background:#FAECE7;color:#712B13;font-size:10px">만료 임박</span>`:''}</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">잔여 대체휴무</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500;color:${bc}">${bal}</span><span style="font-size:11px;color:#888">h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료</div>`:''}</div><div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">누적 적립</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div><div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">사용/소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div></div>${latestHtml}`;
+    d.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:.75rem">
+      <div class="avt">${emp.name.slice(0,2)}</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500">${emp.name}</div><div style="font-size:11px;color:#888">${emp.role}</div></div>
+      ${soon?`<span class="badge" style="background:#FAECE7;color:#712B13;font-size:10px">만료 임박</span>`:''}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">잔여 대체휴무</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500;color:${bc}">${bal}</span><span style="font-size:11px;color:#888">h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료</div>`:''}</div>
+      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">누적 적립</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
+      <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:3px">사용/소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:18px;font-weight:500;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
+    </div>
+    ${latestHtml}`;
     g.appendChild(d);
   });
 }
 
+/* ── APPROVE ── */
 function renderApprovePage(){
   const tl={ext:'연장근무',hol:'휴일근무',use:'대체 사용'},tc={ext:'te',hol:'th2',use:'tu'};
   const pend=REQUESTS.filter(r=>r.status==='pending').sort((a,b)=>a.date.localeCompare(b.date));
-  const done=REQUESTS.filter(r=>r.status!=='pending');
+  const done=REQUESTS.filter(r=>r.status==='approved'||r.status==='rejected');
   const pb=document.getElementById('pending-body');pb.innerHTML='';
   if(!pend.length){pb.innerHTML='<tr><td colspan="7" style="text-align:center;color:#888;padding:.875rem">대기 없음</td></tr>';}
   pend.forEach(r=>{
     const tr=document.createElement('tr');tr.className='pr';
     const ds=r.type==='use'?`<span style="color:#D85A30;font-weight:500">-${r.hours}h</span>`:`<span style="color:#1D9E75;font-weight:500">+${r.daehu}h</span>`;
-    tr.innerHTML=`<td><div style="display:flex;align-items:center;gap:5px"><div class="avt" style="width:22px;height:22px;font-size:10px">${eName(r.eid).slice(0,2)}</div>${eName(r.eid)}</div></td><td><span class="badge ${tc[r.type]}">${tl[r.type]}</span>${r.is_leave?'<span style="font-size:10px;color:#712B13;margin-left:4px">연차</span>':''}</td><td>${r.date}</td><td style="font-size:11px;color:#888">${r.type==='use'?r.hours+'h':r.start_time+'~'+r.end_time}</td><td>${ds}</td><td style="font-size:11px;color:#888;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason||'-'}</td><td><div class="rbtns"><button class="btn sm ap" onclick="openAct('${r.id}','approved')">승인</button><button class="btn sm rj" onclick="openAct('${r.id}','rejected')">반려</button></div></td>`;
+    tr.innerHTML=`<td><div style="display:flex;align-items:center;gap:5px"><div class="avt" style="width:22px;height:22px;font-size:10px">${eName(r.eid).slice(0,2)}</div>${eName(r.eid)}</div></td>
+      <td><span class="badge ${tc[r.type]}">${tl[r.type]}</span>${r.is_leave?'<span style="font-size:10px;color:#712B13;margin-left:4px">연차</span>':''}</td>
+      <td>${r.date}</td>
+      <td style="font-size:11px;color:#888">${r.type==='use'?r.hours+'h':r.start_time+'~'+r.end_time}</td>
+      <td>${ds}</td>
+      <td style="font-size:11px;color:#888;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason||'-'}</td>
+      <td><div class="rbtns"><button class="btn sm ap" onclick="openAct('${r.id}','approved')">승인</button><button class="btn sm rj" onclick="openAct('${r.id}','rejected')">반려</button></div></td>`;
     pb.appendChild(tr);
   });
   const db2=document.getElementById('done-body');db2.innerHTML='';
@@ -502,7 +849,7 @@ function openAct(id,action){
   pendingAct={id,action};
   const isA=action==='approved';
   document.getElementById('act-title').textContent=isA?'승인':'반려';
-  document.getElementById('act-sub').textContent=isA?'승인 코멘트 (선택)':'반려 사유 (선택)';
+  document.getElementById('act-sub').textContent=isA?'승인 코멘트 (선택)':'반려 사유를 입력하세요 (선택)';
   const btn=document.getElementById('act-btn');btn.className=isA?'btn ap':'btn rj';btn.style.flex='1';
   document.getElementById('act-comment').value='';openM('action');
 }
@@ -523,12 +870,15 @@ async function delReq(id){
   REQUESTS=REQUESTS.filter(r=>r.id!==id);renderApprovePage();
 }
 
+/* ── MGMT ── */
 function renderMgmt(){
   const isAdm=mode==='admin';
   document.getElementById('cfg-biz').value=CFG.biz||'';document.getElementById('cfg-biz').disabled=!isAdm;
   document.getElementById('cfg-country').value=CFG.country||'';document.getElementById('cfg-country').disabled=!isAdm;
-  document.getElementById('cfg-ls').value=CFG.lunch.s;document.getElementById('cfg-ls').disabled=!isAdm;
-  document.getElementById('cfg-le').value=CFG.lunch.e;document.getElementById('cfg-le').disabled=!isAdm;
+  const lsWrap=document.getElementById('cfg-ls-sel');lsWrap.innerHTML='';
+  const leWrap=document.getElementById('cfg-le-sel');leWrap.innerHTML='';
+  const lsSel=timeSelect(CFG.lunch.s);lsSel.disabled=!isAdm;lsWrap.appendChild(lsSel);
+  const leSel=timeSelect(CFG.lunch.e);leSel.disabled=!isAdm;leWrap.appendChild(leSel);
   document.getElementById('hol-add-wrap').style.display=isAdm?'block':'none';
   document.getElementById('emp-add-wrap').style.display=isAdm?'block':'none';
   document.getElementById('adm-extra').style.display=isAdm?'block':'none';
@@ -539,7 +889,14 @@ function buildSchedGrid(isAdm){
   DKEYS.forEach((k,i)=>{
     const s=CFG.schedule[k]||{s:'',e:''};
     const d=document.createElement('div');d.className='dayb';
-    d.innerHTML=`<div class="dayn">${DAYS[i]}</div><input type="time" id="sched-s-${k}" value="${s.s}" ${isAdm?'':'disabled'} style="margin-bottom:3px"><input type="time" id="sched-e-${k}" value="${s.e}" ${isAdm?'':'disabled'}>`;
+    const sWrap=document.createElement('div');sWrap.id='sched-s-wrap-'+k;
+    const eWrap=document.createElement('div');eWrap.id='sched-e-wrap-'+k;
+    const sSel=timeSelect(s.s);sSel.id='sched-s-'+k;sSel.disabled=!isAdm;sWrap.appendChild(sSel);
+    const eSel=timeSelect(s.e);eSel.id='sched-e-'+k;eSel.disabled=!isAdm;eWrap.appendChild(eSel);
+    d.innerHTML=`<div class="dayn">${DAYS[i]}</div>`;
+    d.appendChild(sWrap);
+    const gap=document.createElement('div');gap.style.height='3px';d.appendChild(gap);
+    d.appendChild(eWrap);
     g.appendChild(d);
   });
 }
@@ -573,19 +930,41 @@ function renderHols(isAdm){
   if(!sorted.length){el.innerHTML='<div style="color:#888;font-size:12px;padding:.5rem 0">없음</div>';return;}
   sorted.forEach(h=>{
     const d=document.createElement('div');d.className='hol-row';
-    d.innerHTML=`<div style="font-size:12px;font-weight:500;min-width:100px">${h.date}</div><div style="flex:1;font-size:12px;color:#888">${h.name}</div>${isAdm?`<button class="btn sm dg" onclick="delHol('${h.date}')">삭제</button>`:''}`;
+    d.innerHTML=`<div style="font-size:12px;font-weight:500;min-width:100px">${h.date}</div><div style="flex:1;font-size:12px;color:#888">${h.name}</div>${isAdm?`<div class="rbtns"><button class="btn sm" onclick="openEditHol('${h.date}','${h.name}')">수정</button><button class="btn sm dg" onclick="delHol('${h.date}')">삭제</button></div>`:''}`;
     el.appendChild(d);
   });
 }
+function openEditHol(date,name){
+  document.getElementById('edit-hol-orig').value=date;
+  document.getElementById('edit-hol-d').value=date;
+  document.getElementById('edit-hol-n').value=name;
+  openM('edit-hol');
+}
+async function saveEditHol(){
+  const orig=document.getElementById('edit-hol-orig').value;
+  const newDate=document.getElementById('edit-hol-d').value;
+  const newName=document.getElementById('edit-hol-n').value.trim();
+  if(!newDate||!newName)return;
+  if(orig!==newDate){
+    await db.from('holidays').delete().eq('date',orig);
+    await db.from('holidays').insert({date:newDate,name:newName});
+  } else {
+    await db.from('holidays').update({name:newName}).eq('date',orig);
+  }
+  HOLIDAYS=HOLIDAYS.filter(h=>h.date!==orig);
+  HOLIDAYS.push({date:newDate,name:newName});
+  closeM('edit-hol');renderHols(true);showToast('공휴일 수정됨');
+}
 async function addHol(){
-  const date=document.getElementById('new-hol-d').value.trim(),name=document.getElementById('new-hol-n').value.trim();
+  const date=document.getElementById('new-hol-d').value,name=document.getElementById('new-hol-n').value.trim();
   if(!date||!name)return;
   await db.from('holidays').upsert({date,name});
   HOLIDAYS=HOLIDAYS.filter(h=>h.date!==date);HOLIDAYS.push({date,name});
   document.getElementById('new-hol-d').value='';document.getElementById('new-hol-n').value='';
-  document.getElementById('hol-form').classList.remove('open');renderHols(true);
+  document.getElementById('hol-form').classList.remove('open');renderHols(true);showToast('공휴일 추가됨');
 }
 async function delHol(date){
+  if(!confirm('삭제하시겠습니까?'))return;
   await db.from('holidays').delete().eq('date',date);
   HOLIDAYS=HOLIDAYS.filter(h=>h.date!==date);renderHols(true);
 }
