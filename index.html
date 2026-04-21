@@ -547,11 +547,15 @@ function getBal(eid){
     .sort((a,b)=>a.date.localeCompare(b.date));
 
   /* ── FIFO 차감: 소멸 포함 전체 버킷 기준으로 차감 추적 ── */
-  const allBuckets=earnedAll.map(r=>({
-    expiry:r.expiry||'9999',
-    total:parseFloat(r.daehu||0),
-    remain:parseFloat(r.daehu||0),
-  }));
+  /* 같은 만료일끼리 합치기 */
+  const bucketMap={};
+  earnedAll.forEach(r=>{
+    const key=r.expiry||'9999';
+    if(!bucketMap[key])bucketMap[key]={expiry:key,total:0,remain:0};
+    bucketMap[key].total+=parseFloat(r.daehu||0);
+    bucketMap[key].remain+=parseFloat(r.daehu||0);
+  });
+  const allBuckets=Object.values(bucketMap).map(b=>({...b,total:rf(b.total),remain:rf(b.remain)}));
   allBuckets.sort((a,b)=>a.expiry.localeCompare(b.expiry));
 
   for(const u of usedAll){
