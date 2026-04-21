@@ -151,6 +151,7 @@ textarea{resize:vertical;min-height:64px}
     </div>
     <div class="content" id="content">
       <div class="page on" id="page-dash">
+        <div id="diag-banner" style="display:none;background:#FAECE7;border:1px solid #F0997B;border-radius:10px;padding:.875rem 1rem;margin-bottom:.5rem;font-size:13px;color:#712B13"></div>
         <div class="loading" id="dash-loading">데이터 불러오는 중...</div>
         <div id="stat-row" class="stat-row" style="display:none"></div>
         <div id="team-cards"></div>
@@ -162,7 +163,7 @@ textarea{resize:vertical;min-height:64px}
         </div>
         <div class="card">
           <div class="ctitle">대기 중인 신청</div>
-          <table class="tbl"><thead><tr><th>신청자</th><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>사유</th><th>처리</th></tr></thead><tbody id="pending-body"></tbody></table>
+          <table class="tbl"><thead><tr><th>신청자</th><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>만료일</th><th>사유</th><th>처리</th></tr></thead><tbody id="pending-body"></tbody></table>
         </div>
         <div class="card">
           <div class="ctitle">처리 완료</div>
@@ -247,6 +248,20 @@ textarea{resize:vertical;min-height:64px}
               </label>
             </div>
             <div id="backup-info" style="font-size:11px;color:#888;margin-top:.5rem"></div>
+          </div>
+          <div class="card" style="margin-top:1rem">
+            <div class="ctitle">데이터 진단</div>
+            <div style="font-size:13px;color:#666;margin-bottom:.875rem;line-height:1.7">
+              앱 시작 시 자동 진단이 실행되며 매 24시간마다 반복됩니다.<br>
+              오류 발견 시 자동 수정 후 대시보드에 안내됩니다.
+            </div>
+            <div id="diag-last-run" style="font-size:11px;color:#888;margin-bottom:.625rem"></div>
+            <div id="diag-result" style="margin-bottom:.875rem"></div>
+            <div class="rbtns">
+              <button class="btn sm pr" onclick="runDiagNow()">즉시 진단 · 수정</button>
+              <button class="btn sm" onclick="runDiag()">진단만 (확인용)</button>
+              <button class="btn sm wn" id="diag-fix-btn" style="display:none" onclick="runFix()">오류 수정</button>
+            </div>
           </div>
           <div class="card" style="margin-top:1rem">
             <div class="ctitle" style="color:#A32D2D">전체 데이터 리셋</div>
@@ -518,29 +533,81 @@ function calcExtH(st,et,date){
 function getExpiry(d){const[y,mo]=d.split('-').map(Number);let ey=y,em=mo+2;if(em>12){em-=12;ey++;}return`${ey}-${String(em).padStart(2,'0')}-${new Date(ey,em,0).getDate()}`;}
 function getBal(eid){
   const td=today();
-  /* 승인된 것만 확정 잔여 계산 */
-  const apr=REQUESTS.filter(r=>r.eid===eid&&r.status==='approved');
-  const earned=apr.filter(r=>r.type!=='use').reduce((a,r)=>a+r.daehu,0);
-  const used=apr.filter(r=>r.type==='use').reduce((a,r)=>a+r.hours,0);
-  const expired=apr.filter(r=>r.type!=='use'&&r.expiry&&r.expiry<td).reduce((a,r)=>a+r.daehu,0);
-  const active=apr.filter(r=>r.type!=='use'&&r.expiry&&r.expiry>=td).reduce((a,r)=>a+r.daehu,0);
-  /* 대기 중인 시간 (pending) - 만료일 이전 것만 포함 */
-  const pendingEarned=REQUESTS.filter(r=>r.eid===eid&&r.status==='pending'&&r.type!=='use'&&(!r.expiry||r.expiry>=td)).reduce((a,r)=>a+r.daehu,0);
-  const pendingUsed=REQUESTS.filter(r=>r.eid===eid&&r.status==='pending'&&r.type==='use').reduce((a,r)=>a+r.hours,0);
-  /* 총 잔여 = 승인 잔여 + 대기 중 적립 - 대기 중 사용 */
-  const bal=rf(Math.max(0,active-used+pendingEarned-pendingUsed));
-  /* 소멸 알람: 각 만료일별로 잔여시간 계산 */
-  const expiryGroups={};
-  apr.filter(r=>r.type!=='use'&&r.expiry&&r.expiry>=td).forEach(r=>{
-    if(!expiryGroups[r.expiry])expiryGroups[r.expiry]=0;
-    expiryGroups[r.expiry]+=r.daehu;
-  });
-  const alerts=Object.entries(expiryGroups).map(([ex,h])=>{
-    const diff=Math.round((new Date(ex)-new Date())/864e5);
-    return{ex,h:rf(h),diff};
-  }).filter(x=>x.diff<=15).sort((a,b)=>a.diff-b.diff);
+  const approved=REQUESTS.filter(r=>r.eid===eid&&r.status==='approved');
+  const pending=REQUESTS.filter(r=>r.eid===eid&&r.status==='pending');
+
+  /* ── 적립 내역 전체 (만료일 오름차순) ── */
+  const earnedAll=approved
+    .filter(r=>r.type!=='use')
+    .sort((a,b)=>(a.expiry||'9999').localeCompare(b.expiry||'9999'));
+
+  /* ── 사용 내역 (날짜 오름차순) ── */
+  const usedAll=approved
+    .filter(r=>r.type==='use')
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  /* ── FIFO 차감: 소멸 포함 전체 버킷 기준으로 차감 추적 ── */
+  const allBuckets=earnedAll.map(r=>({
+    expiry:r.expiry||'9999',
+    total:parseFloat(r.daehu||0),
+    remain:parseFloat(r.daehu||0),
+  }));
+  allBuckets.sort((a,b)=>a.expiry.localeCompare(b.expiry));
+
+  for(const u of usedAll){
+    let left=parseFloat(u.hours||0);
+    for(const b of allBuckets){
+      if(left<=0)break;
+      const deduct=Math.min(b.remain,left);
+      b.remain=rf(b.remain-deduct);
+      left=rf(left-deduct);
+    }
+  }
+
+  /* ── 현재 유효한 버킷만 (만료 안 된 것) ── */
+  const activeBuckets=allBuckets.filter(b=>b.expiry>=td&&b.remain>0);
+
+  /* ── 소멸량 계산 ── */
+  const expiredBuckets=allBuckets.filter(b=>b.expiry<td);
+  const expired=rf(expiredBuckets.reduce((a,b)=>a+parseFloat(b.total||0),0));
+
+  /* ── 누적 적립 ── */
+  const totalEarned=rf(earnedAll.reduce((a,r)=>a+parseFloat(r.daehu||0),0));
+  const totalUsed=rf(usedAll.reduce((a,r)=>a+parseFloat(r.hours||0),0));
+
+  /* ── pending 적립/사용 (미승인) ── */
+  const pendingEarned=rf(pending
+    .filter(r=>r.type!=='use'&&(!r.expiry||r.expiry>=td))
+    .reduce((a,r)=>a+parseFloat(r.daehu||0),0));
+  const pendingUsed=rf(pending
+    .filter(r=>r.type==='use')
+    .reduce((a,r)=>a+parseFloat(r.hours||0),0));
+
+  /* ── 총 잔여 ── */
+  const confirmedBal=rf(activeBuckets.reduce((a,b)=>a+b.remain,0));
+  const bal=rf(Math.max(0,confirmedBal+pendingEarned-pendingUsed));
+
+  /* ── 소멸 알람: 만료일별 잔여 (15일 이내) ── */
+  const alerts=activeBuckets
+    .map(b=>{
+      const diff=Math.round((new Date(b.expiry)-new Date())/864e5);
+      return{ex:b.expiry,h:b.remain,diff};
+    })
+    .filter(x=>x.diff<=15)
+    .sort((a,b)=>a.diff-b.diff);
+
   const soon=alerts[0]||null;
-  return{bal,soon,alerts,expired:rf(expired),earned:rf(earned),used:rf(used),pendingEarned:rf(pendingEarned),pendingUsed:rf(pendingUsed)};
+
+  /* ── 만료일별 잔여 목록 (UI 표시용) ── */
+  const balByExpiry=activeBuckets.map(b=>({
+    expiry:b.expiry,
+    remain:b.remain,
+    diff:Math.round((new Date(b.expiry)-new Date())/864e5),
+  }));
+
+  return{bal,confirmedBal,soon,alerts,balByExpiry,
+    expired,earned:totalEarned,used:totalUsed,
+    pendingEarned,pendingUsed};
 }
 function getLatest(eid){return REQUESTS.filter(r=>r.eid===eid&&r.status!=='cancelled').sort((a,b)=>b.created_at?.localeCompare(a.created_at||'')||0)[0]||null;}
 
@@ -559,7 +626,16 @@ async function loadAll(){
   }
   EMPLOYEES=empRes.data||[];
   HOLIDAYS=holRes.data||[];
-  REQUESTS=(reqRes.data||[]).map(r=>({...r,eid:r.eid,daehu:parseFloat(r.daehu)||0,hours:parseFloat(r.hours)||0}));
+  REQUESTS=(reqRes.data||[]).map(r=>({
+    ...r,
+    eid:r.eid,
+    /* 데이터 정합성 보정 — 로드 시 자동 수정 */
+    daehu:r.type==='use'
+      ? -Math.abs(parseFloat(r.daehu)||parseFloat(r.hours)||0)  // 사용은 반드시 음수
+      : Math.abs(parseFloat(r.daehu)||parseFloat(r.hours)||0),  // 적립은 반드시 양수
+    hours:Math.abs(parseFloat(r.hours)||Math.abs(parseFloat(r.daehu))||0),
+    expiry:r.expiry||(r.type!=='use'&&r.status==='approved'?getExpiry(r.date):null),
+  }));
   updateLogo();
 }
 
@@ -662,7 +738,13 @@ function buildNav(){
   const sep=()=>{const d=document.createElement('div');d.className='nsep';nav.appendChild(d);};
   const sec=(t)=>{const d=document.createElement('div');d.className='nsec';d.textContent=t;nav.appendChild(d);};
   add('dash','대시보드');sep();sec('직원');
-  EMPLOYEES.forEach(emp=>add('emp-'+emp.id,emp.name));
+  const activeEmps=EMPLOYEES.filter(e=>e.active!==false);
+  const retiredEmps=EMPLOYEES.filter(e=>e.active===false);
+  activeEmps.forEach(emp=>add('emp-'+emp.id,emp.name));
+  if(retiredEmps.length>0){
+    sep();sec('퇴사자');
+    retiredEmps.forEach(emp=>add('emp-'+emp.id,`${emp.name} (퇴사)`));
+  }
   if(mode==='approver'||mode==='admin'){sep();sec('승인자');add('approve',`승인 관리${pending>0?`<span class="pchip">${pending}</span>`:'`'}`, 'nappr');}
   sep();sec('관리');add('mgmt','관리 설정','nadm');
 }
@@ -697,7 +779,7 @@ function renderEmpPage(pid){
   if(!emp||!pg)return;
   pg.innerHTML='';
   const td=today();
-  const{bal,soon,alerts,expired,earned,used,pendingEarned,pendingUsed}=getBal(eid);
+  const{bal,soon,alerts,balByExpiry,expired,earned,used,pendingEarned,pendingUsed}=getBal(eid);
   const bc=bal<=0?'#888':soon?'#D85A30':'#1D9E75';
   const latest=getLatest(eid);
   let bannerHtml='';
@@ -713,10 +795,29 @@ function renderEmpPage(pid){
   if(expiryAlertHtml){alertHtml=expiryAlertHtml;}
   else if(bal>0){alertHtml=`<div class="alert-box a-ok"><div style="color:#1D9E75;flex-shrink:0">✓</div><div>잔여 ${bal}h (${rf(bal/8).toFixed(1)}일) · 소멸 임박 없음${(pendingEarned>0||pendingUsed>0)?' · 미승인 '+(pendingEarned>0?'+'+pendingEarned+'h':'')+(pendingUsed>0?' -'+pendingUsed+'h':'')+' 포함':''}</div></div>`;}
   else{alertHtml=`<div class="alert-box a-none"><div style="color:#888">현재 잔여 대체휴무 없음</div></div>`;}
+  /* 만료일별 잔여 목록 */
+  const expiryListHtml=balByExpiry&&balByExpiry.length>0
+    ?balByExpiry.map(b=>{
+        const c=b.diff<=3?'#A32D2D':b.diff<=7?'#D85A30':b.diff<=15?'#BA7517':'#1D9E75';
+        const label=b.diff<=0?'오늘 소멸':b.diff===1?'내일 소멸':b.diff+'일 후 소멸';
+        return`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:0.5px solid rgba(0,0,0,.06);font-size:12px">
+          <span style="color:#666">${b.expiry} 만료</span>
+          <span style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:${c};font-weight:600">${label}</span>
+            <span style="font-size:14px;font-weight:700;color:${c}">${b.remain}h</span>
+          </span>
+        </div>`;
+      }).join('')
+    :'<div style="font-size:12px;color:#888;padding:4px 0">잔여 없음</div>';
+
   const balHtml=`<div class="bal3">
-    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">대체휴무 잔여</div><div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap"><span style="font-size:24px;font-weight:700;color:${bc}">${bal}h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${(pendingEarned>0||pendingUsed>0)?`<div style="font-size:10px;color:#BA7517;margin-top:2px">미승인 ${pendingEarned>0?'+'+pendingEarned+'h':''}${pendingUsed>0?' -'+pendingUsed+'h':''} 포함</div>`:''} ${soon?`<div style="font-size:10px;color:#D85A30;margin-top:2px">${soon.ex} 만료 · ${soon.diff}일 후</div>`:''}</div>
-    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">누적 적립 (승인)</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:24px;font-weight:700">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
-    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">사용 / 소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:24px;font-weight:700;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">대체휴무 잔여</div><div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap"><span style="font-size:24px;font-weight:700;color:${bc}">${bal}h</span><span style="font-size:10px;color:#aaa">(${rf(bal/8).toFixed(1)}일)</span></div>${(pendingEarned>0||pendingUsed>0)?`<div style="font-size:10px;color:#BA7517;margin-top:2px">미승인 ${pendingEarned>0?'+'+pendingEarned+'h':''}${pendingUsed>0?' -'+pendingUsed+'h':''} 포함</div>`:''}</div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">누적 적립 (승인)</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:700">${earned}</span><span style="font-size:11px;color:#888">h</span></div></div>
+    <div class="balc"><div style="font-size:11px;color:#888;margin-bottom:4px">사용 / 소멸</div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:20px;font-weight:700;color:#888">${used}</span><span style="font-size:11px;color:#888">h</span></div><div style="font-size:10px;color:#A32D2D;margin-top:2px">소멸 ${expired}h</div></div>
+  </div>
+  <div class="card" style="margin-top:-.5rem">
+    <div style="font-size:13px;font-weight:600;margin-bottom:.625rem">만료일별 잔여 <span style="font-size:11px;color:#888;font-weight:400">(빠른 순으로 먼저 차감)</span></div>
+    ${expiryListHtml}
   </div>`;
 
   /* request form */
@@ -792,12 +893,24 @@ function renderEmpPage(pid){
   });
   if(!rows)rows='<tr><td colspan="8" style="text-align:center;color:#888;padding:.875rem">신청 내역 없음</td></tr>';
 
+  const isRetired=emp.active===false;
+  const retiredBanner=isRetired?`<div style="background:#f0eeea;border:1px solid #ccc;border-radius:10px;padding:.875rem 1rem;font-size:13px;color:#666;display:flex;align-items:center;gap:8px">
+    <span>🚪</span><span><strong>${emp.name}</strong>님은 퇴사 처리된 직원입니다. (퇴사일: ${emp.retired_at||'-'})</span>
+  </div>`:'';
   pg.innerHTML=`
     <div style="display:flex;align-items:center;gap:12px">
-      <div class="person-avt">${emp.name.slice(0,2)}</div>
-      <div><div style="font-size:16px;font-weight:500">${emp.name}</div><div style="font-size:12px;color:#888">${emp.role}</div></div>
+      <div class="person-avt" style="${isRetired?'background:#f0eeea;color:#aaa':''}">${emp.name.slice(0,2)}</div>
+      <div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px;font-weight:500">${emp.name}</span>
+          ${isRetired?'<span class="badge sc2">퇴사</span>':''}
+        </div>
+        <div style="font-size:12px;color:#888">${emp.role}</div>
+      </div>
     </div>
-    ${bannerHtml}${alertHtml}${balHtml}${reqFormHtml}
+    ${retiredBanner}
+    ${bannerHtml}${alertHtml}${balHtml}
+    ${isRetired?'':reqFormHtml}
     <div class="card">
       <div class="ctitle">신청 및 근무 내역</div>
       <table class="tbl"><thead><tr><th>유형</th><th>날짜</th><th>시간</th><th>대휴</th><th>만료일</th><th>상태</th><th>사유</th><th>코멘트</th><th></th></tr></thead><tbody>${rows}</tbody></table>
@@ -1007,8 +1120,24 @@ async function submitReq(eid){
     if(hours<=0){showToast('점심시간을 제외하면 0시간입니다. 시간을 다시 확인해주세요');return;}
     /* 잔여 초과 사용 차단 */
     const curBal=getBal(eid);
-    if(hours>curBal.bal){
-      showToast(`잔여 대체휴무(${curBal.bal}h)를 초과합니다`);return;
+    const confirmedBal=curBal.confirmedBal||0;
+    if(confirmedBal<=0){
+      showToast('승인된 잔여가 없습니다. 미승인 신청이 승인된 후 사용하세요.');return;
+    }
+    if(hours>confirmedBal){
+      showToast(`승인된 잔여(${confirmedBal}h)를 초과합니다${curBal.pendingEarned>0?' · 미승인 +'+curBal.pendingEarned+'h 포함 총 '+curBal.bal+'h':''}`);return;
+    }
+    /* 차감될 버킷 미리 계산해서 표시 */
+    if(curBal.balByExpiry&&curBal.balByExpiry.length>0){
+      let previewLeft=hours;
+      const deductPreview=[];
+      for(const b of curBal.balByExpiry){
+        if(previewLeft<=0)break;
+        const d=Math.min(b.remain,previewLeft);
+        if(d>0)deductPreview.push(`${b.expiry} 만료분에서 ${d}h`);
+        previewLeft=rf(previewLeft-d);
+      }
+      if(deductPreview.length>0) showToast('차감 예정: '+deductPreview.join(', '));
     }
     daehu=-hours;
   } else {
@@ -1021,6 +1150,8 @@ async function submitReq(eid){
   if(error){showToast('오류: '+error.message);return;}
   REQUESTS.unshift({...data,daehu:parseFloat(data.daehu)||0,hours:parseFloat(data.hours)||0});
   buildNav();renderEmpPage('emp-'+eid);showToast('신청이 제출됐습니다');
+  /* 제출 성공 후 폼 닫기 */
+  setTimeout(()=>{const body=document.getElementById('req-body-'+eid);const icon=document.getElementById('req-toggle-icon-'+eid);if(body){body.classList.remove('open');if(icon)icon.textContent='▶';}},300);
 }
 
 /* ── DASHBOARD ── */
@@ -1038,11 +1169,31 @@ function renderDash(){
     <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">대기 신청</div><div style="font-size:28px;font-weight:700;color:${pending>0?'#BA7517':'inherit'}">${pending}</div></div>
     <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">소멸 임박</div><div style="font-size:28px;font-weight:700;color:${alert3N>0?'#A32D2D':alert15N>0?'#D85A30':'inherit'}">${alert15N}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${alert3N>0?'3일 이내 '+alert3N+'명':alert15N>0?'15일 이내':'없음'}</div></div>
     <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">이번달 승인</div><div style="font-size:28px;font-weight:700">${thisM}</div></div>`;
+  /* 진단 결과 배너 */
+  const diagBanner=document.getElementById('diag-banner');
+  if(diagBanner){
+    if(lastDiagResult&&lastDiagResult.fixed>0){
+      diagBanner.style.display='block';
+      diagBanner.innerHTML=`<div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="font-size:18px;flex-shrink:0">🔧</div>
+        <div style="flex:1">
+          <div style="font-weight:600;margin-bottom:3px">데이터 오류 ${lastDiagResult.fixed}건 자동 수정됨 ${lastDiagResult.auto?'(자동)':'(수동)'}</div>
+          <div style="font-size:11px;color:#712B13;margin-bottom:4px">${lastDiagResult.time}</div>
+          ${lastDiagResult.msgs.slice(0,3).map(m=>`<div style="font-size:11px;color:#712B13">· ${m}</div>`).join('')}
+          ${lastDiagResult.msgs.length>3?`<div style="font-size:11px;color:#712B13">· 외 ${lastDiagResult.msgs.length-3}건...</div>`:''}
+        </div>
+        <button class="btn sm" style="flex-shrink:0" onclick="lastDiagResult=null;localStorage.removeItem('lastDiag');renderDash()">닫기</button>
+      </div>`;
+    } else {
+      diagBanner.style.display='none';
+    }
+  }
+
   const g=document.getElementById('team-cards');g.innerHTML='';
   if(!EMPLOYEES.length){g.innerHTML='<div class="card" style="color:#888;font-size:12px">관리 설정에서 직원을 등록해주세요.</div>';return;}
   const tl={ext:'연장근무',hol:'휴일근무',use:'대체 사용'};
   EMPLOYEES.forEach(emp=>{
-    const{bal,soon,alerts,expired,earned,used,pendingEarned,pendingUsed}=getBal(emp.id);
+    const{bal,soon,alerts,balByExpiry,expired,earned,used,pendingEarned,pendingUsed}=getBal(emp.id);
     const bc=bal<=0?'#888':soon?'#D85A30':'#1D9E75';
     const latest=getLatest(emp.id);
     let latestHtml='';
@@ -1104,6 +1255,7 @@ function renderApprovePage(){
       <td>${r.date}</td>
       <td style="font-size:11px;color:#888">${r.start_time&&r.end_time?r.start_time+'~'+r.end_time:r.hours+'h'}</td>
       <td>${ds}</td>
+      <td style="font-size:11px;color:${r.expiry&&r.expiry<=new Date(Date.now()+7*864e5).toISOString().slice(0,10)?'#A32D2D':r.expiry&&r.expiry<=new Date(Date.now()+15*864e5).toISOString().slice(0,10)?'#D85A30':'#888'}">${r.expiry||'-'}</td>
       <td style="font-size:11px;color:#888;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.reason||'-'}</td>
       <td>${mode==='approver'?`<div class="rbtns"><button class="btn ap" style="padding:7px 16px;font-weight:600" onclick="openAct('${r.id}','approved')">✓ 승인</button><button class="btn rj" style="padding:7px 16px;font-weight:600" onclick="openAct('${r.id}','rejected')">✕ 반려</button></div>`:'<span style="font-size:11px;color:#aaa">승인자만 처리</span>'}</td>`;
     pb.appendChild(tr);
@@ -1174,6 +1326,18 @@ function renderMgmt(){
   document.getElementById('emp-add-wrap').style.display=isAdm?'block':'none';
   document.getElementById('adm-extra').style.display=isAdm?'block':'none';
   buildSchedGrid(isAdm);renderHols(isAdm);renderEmps(isAdm);
+  /* 마지막 진단 시간 표시 */
+  const lastEl=document.getElementById('diag-last-run');
+  if(lastEl){
+    if(lastDiagResult){
+      const icon=lastDiagResult.fixed>0?'🔧':'✓';
+      const msg=lastDiagResult.fixed>0?`${lastDiagResult.fixed}건 수정됨`:'오류 없음';
+      lastEl.textContent=`${icon} 마지막 진단: ${lastDiagResult.time} · ${msg}`;
+      lastEl.style.color=lastDiagResult.fixed>0?'#D85A30':'#1D9E75';
+    } else {
+      lastEl.textContent='아직 진단 기록 없음';
+    }
+  }
 }
 function buildSchedGrid(isAdm){
   const g=document.getElementById('sched-grid');g.innerHTML='';
@@ -1194,9 +1358,27 @@ function buildSchedGrid(isAdm){
 function renderEmps(isAdm){
   const el=document.getElementById('emp-list');el.innerHTML='';
   if(!EMPLOYEES.length){el.innerHTML='<div style="color:#888;font-size:12px;padding:.5rem 0">없음</div>';return;}
-  EMPLOYEES.forEach(e=>{
+  // 재직자 먼저, 퇴사자 아래
+  const active=EMPLOYEES.filter(e=>e.active!==false);
+  const inactive=EMPLOYEES.filter(e=>e.active===false);
+  [...active,...inactive].forEach(e=>{
+    const isInactive=e.active===false;
     const d=document.createElement('div');d.className='emp-row';
-    d.innerHTML=`<div class="avt">${e.name.slice(0,2)}</div><div style="flex:1"><div style="font-size:13px;font-weight:500">${e.name}</div><div style="font-size:11px;color:#888">${e.role}</div></div>${isAdm?`<button class="btn sm dg" onclick="delEmp('${e.id}')">삭제</button>`:''}`;
+    d.style.cssText=isInactive?'opacity:.45;':'';
+    const badge=isInactive?'<span class="badge sc2" style="font-size:11px">퇴사</span>':'';
+    const btns=isAdm?`
+      ${!isInactive?`<button class="btn sm wn" onclick="retireEmp('${e.id}','${e.name}')">퇴사</button>`
+                   :`<button class="btn sm" onclick="unretireEmp('${e.id}','${e.name}')">복직</button>`}
+      <button class="btn sm dg" onclick="openDelEmp('${e.id}')">삭제</button>`:'';
+    d.innerHTML=`<div class="avt" style="${isInactive?'background:#f0eeea;color:#aaa':''}">${e.name.slice(0,2)}</div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:13px;font-weight:${isInactive?'400':'500'}">${e.name}</span>
+          ${badge}
+        </div>
+        <div style="font-size:11px;color:#888">${e.role}${isInactive&&e.retired_at?' · 퇴사일: '+e.retired_at:''}</div>
+      </div>
+      <div class="rbtns">${btns}</div>`;
     el.appendChild(d);
   });
 }
@@ -1259,9 +1441,40 @@ async function delHol(date){
   document.getElementById('del-confirm-msg').textContent='공휴일을 삭제하시겠습니까?';
   openM('del-confirm');
 }
+/* 퇴사 처리 */
+async function retireEmp(id,name){
+  pendingDelId={type:'retire',id,name};
+  document.getElementById('del-confirm-msg').textContent=`${name}님을 퇴사 처리하겠습니까?
+목록에는 유지되지만 비활성화됩니다.`;
+  openM('del-confirm');
+}
+/* 복직 처리 */
+async function unretireEmp(id,name){
+  const{error}=await db.from('employees').update({active:true,retired_at:null}).eq('id',id);
+  if(error){showToast('오류: '+error.message);return;}
+  const emp=EMPLOYEES.find(e=>e.id===id);
+  if(emp){emp.active=true;emp.retired_at=null;}
+  buildNav();renderEmps(mode==='admin');showToast(`${name}님 복직 처리됐습니다`);
+}
+/* 직원 삭제 모달 */
+function openDelEmp(id){
+  pendingDelId={type:'emp',id};
+  document.getElementById('del-confirm-msg').textContent='직원을 완전히 삭제하겠습니까? 해당 직원의 모든 신청 내역도 삭제됩니다.';
+  openM('del-confirm');
+}
 async function confirmDel(){
   if(!pendingDelId){closeM('del-confirm');return;}
-  const{type,id}=pendingDelId;
+  const{type,id,name}=pendingDelId;
+  if(type==='retire'){
+    const retireDate=new Date().toISOString().slice(0,10);
+    const{error}=await db.from('employees').update({active:false,retired_at:retireDate}).eq('id',id);
+    if(error){showToast('오류: '+error.message);closeM('del-confirm');return;}
+    const emp=EMPLOYEES.find(e=>e.id===id);
+    if(emp){emp.active=false;emp.retired_at=retireDate;}
+    pendingDelId=null;closeM('del-confirm');
+    buildNav();renderEmps(true);showToast(`${name||'직원'}님 퇴사 처리됐습니다`);
+    return;
+  }
   if(type==='emp'){
     await db.from('employees').delete().eq('id',id);
     EMPLOYEES=EMPLOYEES.filter(e=>e.id!==id);
@@ -1273,6 +1486,156 @@ async function confirmDel(){
     renderHols(mode==='admin');showToast('공휴일이 삭제됐습니다');
   }
   pendingDelId=null;closeM('del-confirm');
+}
+/* ── 데이터 진단 / 수정 ── */
+let diagErrors=[];
+let lastDiagResult=null;
+let diagTimer=null;
+
+/* 진단 실행 (UI 없이 백그라운드도 가능) */
+function runDiagSilent(){
+  const errors=[];
+  const warnings=[];
+  REQUESTS.forEach(r=>{
+    const emp=EMPLOYEES.find(e=>e.id===r.eid);
+    const name=emp?.name||'?';
+    if(r.type!=='use'&&(r.daehu<=0||isNaN(r.daehu))){
+      errors.push({id:r.id,fix:'daehu_earn',val:r.hours,msg:`${name} · ${r.date} · daehu 오류(${r.daehu}→${r.hours})`});
+    }
+    if(r.type==='use'&&r.daehu>0){
+      errors.push({id:r.id,fix:'daehu_use',val:-r.hours,msg:`${name} · ${r.date} · daehu 양수 오류`});
+    }
+    if(r.type==='use'&&r.daehu===null){
+      errors.push({id:r.id,fix:'daehu_use',val:-r.hours,msg:`${name} · ${r.date} · daehu null`});
+    }
+    if(r.type!=='use'&&r.status==='approved'&&!r.expiry){
+      const v=getExpiry(r.date);
+      errors.push({id:r.id,fix:'expiry',val:v,msg:`${name} · ${r.date} · 만료일 누락→${v}`});
+    }
+    if(r.type!=='use'&&r.status==='approved'&&r.expiry){
+      const v=getExpiry(r.date);
+      if(r.expiry!==v) errors.push({id:r.id,fix:'expiry',val:v,msg:`${name} · ${r.date} · 만료일 불일치(${r.expiry}→${v})`});
+    }
+    if((r.hours<=0||isNaN(r.hours))&&r.status==='approved'){
+      errors.push({id:r.id,fix:'hours',val:Math.abs(r.daehu)||0,msg:`${name} · ${r.date} · hours 오류`});
+    }
+  });
+  return errors;
+}
+
+/* UI에 진단 결과 표시 */
+function runDiag(){
+  const el=document.getElementById('diag-result');
+  const fixBtn=document.getElementById('diag-fix-btn');
+  if(!el)return;
+  el.innerHTML='<div style="font-size:12px;color:#888">진단 중...</div>';
+  diagErrors=runDiagSilent();
+  const now=new Date().toLocaleString('ko-KR');
+  if(diagErrors.length===0){
+    el.innerHTML=`<div style="font-size:13px;color:#1D9E75;padding:.5rem 0">✓ 오류 없음 · ${now}</div>`;
+    if(fixBtn)fixBtn.style.display='none';
+  } else {
+    let html=`<div style="font-size:13px;color:#A32D2D;font-weight:600;margin-bottom:.5rem">${diagErrors.length}개 오류 발견 · ${now}</div>`;
+    diagErrors.forEach(e=>{
+      html+=`<div style="font-size:12px;padding:5px 0;border-bottom:0.5px solid rgba(0,0,0,.06);color:#A32D2D;display:flex;align-items:center;gap:6px">
+        <span>⚠️</span><span>${e.msg}</span></div>`;
+    });
+    el.innerHTML=html;
+    if(fixBtn)fixBtn.style.display='block';
+  }
+}
+
+/* 오류 수정 실행 */
+async function runFix(){
+  if(!diagErrors.length){showToast('수정할 오류가 없습니다');return;}
+  const fixBtn=document.getElementById('diag-fix-btn');
+  if(fixBtn){fixBtn.disabled=true;fixBtn.textContent='수정 중...';}
+  let fixed=0;const fixedMsgs=[];
+  for(const err of diagErrors){
+    const update={};
+    if(err.fix==='daehu_earn')update.daehu=err.val;
+    else if(err.fix==='daehu_use')update.daehu=err.val;
+    else if(err.fix==='expiry')update.expiry=err.val;
+    else if(err.fix==='hours')update.hours=err.val;
+    const{error}=await db.from('requests').update(update).eq('id',err.id);
+    if(!error){fixed++;fixedMsgs.push(err.msg);}
+  }
+  if(fixBtn){fixBtn.disabled=false;fixBtn.textContent='오류 수정';}
+  if(fixed>0){
+    lastDiagResult={fixed,msgs:fixedMsgs,time:new Date().toLocaleString('ko-KR')};
+    localStorage.setItem('lastDiag',JSON.stringify(lastDiagResult));
+    showToast(`${fixed}개 오류 수정 완료`);
+    await loadAll();
+    runDiag();
+    renderDash();
+  }
+}
+
+/* 정기 진단 시작 (매일 1회) */
+function startScheduledDiag(){
+  if(diagTimer)clearInterval(diagTimer);
+  /* 즉시 1회 실행 */
+  runScheduledDiag();
+  /* 이후 24시간마다 */
+  diagTimer=setInterval(runScheduledDiag, 24*60*60*1000);
+}
+
+async function runScheduledDiag(){
+  const errors=runDiagSilent();
+  if(errors.length===0){
+    lastDiagResult={fixed:0,msgs:[],time:new Date().toLocaleString('ko-KR'),auto:true};
+  } else {
+    /* 자동 수정 시도 */
+    let fixed=0;const fixedMsgs=[];
+    for(const err of errors){
+      const update={};
+      if(err.fix==='daehu_earn')update.daehu=err.val;
+      else if(err.fix==='daehu_use')update.daehu=err.val;
+      else if(err.fix==='expiry')update.expiry=err.val;
+      else if(err.fix==='hours')update.hours=err.val;
+      const{error}=await db.from('requests').update(update).eq('id',err.id);
+      if(!error){fixed++;fixedMsgs.push(err.msg);}
+    }
+    if(fixed>0){
+      await loadAll();
+      lastDiagResult={fixed,msgs:fixedMsgs,time:new Date().toLocaleString('ko-KR'),auto:true};
+      localStorage.setItem('lastDiag',JSON.stringify(lastDiagResult));
+      renderDash();
+      if(mode==='admin'&&document.getElementById('page-mgmt')?.classList.contains('on'))runDiag();
+    }
+  }
+  if(lastDiagResult)localStorage.setItem('lastDiag',JSON.stringify(lastDiagResult));
+}
+
+/* localStorage에서 마지막 진단 결과 불러오기 */
+function loadLastDiag(){
+  try{
+    const d=localStorage.getItem('lastDiag');
+    if(d)lastDiagResult=JSON.parse(d);
+  }catch(e){}
+}
+
+/* 즉시 진단 + 자동 수정 */
+async function runDiagNow(){
+  showToast('진단 중...');
+  await runScheduledDiag();
+  runDiag();
+  const lastEl=document.getElementById('diag-last-run');
+  if(lastEl&&lastDiagResult){
+    lastEl.textContent=`마지막 실행: ${lastDiagResult.time} · ${lastDiagResult.fixed>0?lastDiagResult.fixed+'건 수정됨':'오류 없음'}`;
+  }
+  showToast(lastDiagResult?.fixed>0?`${lastDiagResult.fixed}건 자동 수정됨`:'오류 없음');
+}
+function toggleF(id){document.getElementById(id).classList.toggle('open');}/* 즉시 진단 + 자동 수정 */
+async function runDiagNow(){
+  showToast('진단 중...');
+  await runScheduledDiag();
+  runDiag();
+  const lastEl=document.getElementById('diag-last-run');
+  if(lastEl&&lastDiagResult){
+    lastEl.textContent=`마지막 실행: ${lastDiagResult.time} · ${lastDiagResult.fixed>0?lastDiagResult.fixed+'건 수정됨':'오류 없음'}`;
+  }
+  showToast(lastDiagResult?.fixed>0?`${lastDiagResult.fixed}건 자동 수정됨`:'오류 없음');
 }
 function toggleF(id){document.getElementById(id).classList.toggle('open');}
 
@@ -1349,8 +1712,11 @@ async function confirmRestore(){
 }
 
 async function init(){
+  loadLastDiag();
   await loadAll();
   applyMode();buildNav();renderDash();
+  /* 정기 진단 시작 (매 24시간) */
+  startScheduledDiag();
 }
 init();
 </script>
