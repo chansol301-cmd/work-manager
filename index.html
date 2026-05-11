@@ -452,7 +452,7 @@ let mode='user';
 let pendingAct=null;
 let pendingDelId=null;
 let pendingCancelId=null;
-let CFG={biz:'',country:'',lunch:{s:'12:00',e:'13:00'},schedule:{mon:{s:'09:00',e:'18:00'},tue:{s:'09:00',e:'18:00'},wed:{s:'09:00',e:'18:00'},thu:{s:'09:00',e:'18:00'},fri:{s:'09:00',e:'18:00'},sat:{s:'',e:''},sun:{s:'',e:''}},admin_pw:'7598',approver_pw:APR_INIT,approver_pw_set:false};
+let CFG={biz:'',country:'',lunch:{s:'12:00',e:'13:00'},schedule:{mon:{s:'09:00',e:'18:00'},tue:{s:'09:00',e:'18:00'},wed:{s:'09:00',e:'18:00'},thu:{s:'09:00',e:'18:00'},fri:{s:'09:00',e:'18:00'},sat:{s:'',e:''},sun:{s:'',e:''}},approver_pw_set:false};
 let EMPLOYEES=[];
 let HOLIDAYS=[];
 let REQUESTS=[];
@@ -625,8 +625,7 @@ async function loadAll(){
   if(cfgRes.data){
     const c=cfgRes.data;
     CFG={biz:c.biz||'',country:c.country||'',lunch:{s:c.lunch_start||'12:00',e:c.lunch_end||'13:00'},
-      schedule:c.schedule||CFG.schedule,admin_pw:c.admin_pw||'7598',
-      approver_pw:c.approver_pw||APR_INIT,approver_pw_set:c.approver_pw_set||false};
+      schedule:c.schedule||CFG.schedule,approver_pw_set:c.approver_pw_set||false};
   }
   EMPLOYEES=empRes.data||[];
   HOLIDAYS=holRes.data||[];
@@ -657,7 +656,7 @@ async function saveConfig(){
   const ls=lsEl?.value||CFG.lunch.s;
   const le=leEl?.value||CFG.lunch.e;
   CFG.biz=biz;CFG.country=country;CFG.lunch={s:ls,e:le};CFG.schedule=sched;
-  await db.from('config').upsert({id:'main',biz,country,lunch_start:ls,lunch_end:le,schedule:sched,admin_pw:CFG.admin_pw,approver_pw:CFG.approver_pw,approver_pw_set:CFG.approver_pw_set});
+  await db.from('config').upsert({id:'main',biz,country,lunch_start:ls,lunch_end:le,schedule:sched});
   updateLogo();showToast('설정 저장됨');
 }
 
@@ -670,16 +669,21 @@ function openM(id){const el=document.getElementById('m-'+id);if(!el)return;el.cl
 function closeM(id){const el=document.getElementById('m-'+id);if(el)el.classList.remove('show');}
 function eyeTgl(id,btn){const el=document.getElementById(id);el.type=el.type==='password'?'text':'password';btn.textContent=el.type==='password'?'표시':'숨김';}
 
-function doAdmLogin(){
+async function doAdmLogin(){
   const pw=document.getElementById('adm-pw').value;
-  if(pw===CFG.admin_pw){mode='admin';closeM('adm-login');applyMode();buildNav();goPage('mgmt');}
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',type:'admin',password:pw})});
+  const j=await r.json().catch(()=>({}));
+  if(j.ok){mode='admin';closeM('adm-login');applyMode();buildNav();goPage('mgmt');}
   else{document.getElementById('adm-err').textContent='비밀번호가 올바르지 않습니다.';}
 }
-function doAprLogin(){
+async function doAprLogin(){
   const pw=document.getElementById('apr-pw').value;
-  if(pw===CFG.approver_pw){
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',type:'approver',password:pw})});
+  const j=await r.json().catch(()=>({}));
+  if(j.ok){
     closeM('apr-login');
-    if(CFG.approver_pw===APR_INIT||!CFG.approver_pw_set){
+    CFG.approver_pw_set=!!j.approver_pw_set;
+    if(!j.approver_pw_set){
       document.getElementById('sp1').value='';document.getElementById('sp2').value='';
       document.getElementById('sp-hint').textContent='';document.getElementById('sp-btn').disabled=true;
       openM('set-pw');
@@ -699,26 +703,29 @@ function chkSP(){
 async function confirmSP(){
   const p1=document.getElementById('sp1').value,p2=document.getElementById('sp2').value;
   if(!p1||p1!==p2)return;
-  CFG.approver_pw=p1;CFG.approver_pw_set=true;
-  await db.from('config').upsert({id:'main',approver_pw:p1,approver_pw_set:true});
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set-pw',type:'approver',newPassword:p1})});
+  const j=await r.json().catch(()=>({}));
+  if(!j.ok){showToast('비밀번호 설정 실패');return;}
+  CFG.approver_pw_set=true;
   closeM('set-pw');mode='approver';applyMode();buildNav();goPage('approve');showToast('비밀번호 설정 완료');
 }
 async function doResetApr(){
-  CFG.approver_pw=APR_INIT;CFG.approver_pw_set=false;
-  await db.from('config').upsert({id:'main',approver_pw:APR_INIT,approver_pw_set:false});
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset-pw',type:'approver'})});
+  const j=await r.json().catch(()=>({}));
+  if(!j.ok){showToast('초기화 실패');return;}
+  CFG.approver_pw_set=false;
   closeM('reset-confirm');showToast('승인자 비밀번호 0000으로 초기화됨');
 }
 async function doFullReset(){
   const txt=document.getElementById('reset-confirm-text').value.trim();
   if(txt!=='리셋'){showToast('"리셋" 을 정확히 입력하세요');return;}
-  await Promise.all([
-    db.from('requests').delete().neq('id','__none__'),
-    db.from('employees').delete().neq('id','__none__'),
-    db.from('holidays').delete().neq('date','__none__'),
-    db.from('config').upsert({id:'main',biz:'',country:'',admin_pw:'7598',approver_pw:APR_INIT,approver_pw_set:false,schedule:CFG.schedule}),
-  ]);
+  const adminPw=prompt('관리자 비밀번호를 한 번 더 입력하세요:');
+  if(adminPw===null||adminPw==='')return;
+  const r=await fetch('/api/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adminPassword:adminPw,confirm:'리셋'})});
+  const j=await r.json().catch(()=>({}));
+  if(!j.ok){showToast('리셋 실패: '+(j.reason==='wrong-pw'?'비밀번호 불일치':j.reason==='wrong-confirm'?'확인 텍스트 불일치':'오류'));return;}
   REQUESTS=[];EMPLOYEES=[];HOLIDAYS=[];
-  CFG.biz='';CFG.country='';CFG.approver_pw=APR_INIT;CFG.approver_pw_set=false;
+  CFG.biz='';CFG.country='';CFG.approver_pw_set=false;
   closeM('full-reset-confirm');
   document.getElementById('reset-confirm-text').value='';
   mode='user';applyMode();buildNav();goPage('dash');
@@ -1704,7 +1711,8 @@ async function confirmRestore(){
     }
     if(data.config){
       const c=data.config;
-      await db.from('config').upsert({id:'main',biz:c.biz||'',country:c.country||'',lunch_start:c.lunch?.s||'12:00',lunch_end:c.lunch?.e||'13:00',schedule:c.schedule,admin_pw:c.admin_pw||'7598',approver_pw:c.approver_pw||APR_INIT,approver_pw_set:c.approver_pw_set||false});
+      // 백업 복원: 일반 설정만 복원 (비번은 보안상 별도 흐름 — restoreBackup 에서 비번 복원 안 함)
+      await db.from('config').upsert({id:'main',biz:c.biz||'',country:c.country||'',lunch_start:c.lunch?.s||'12:00',lunch_end:c.lunch?.e||'13:00',schedule:c.schedule});
     }
     await loadAll();
     closeM('restore-confirm');pendingRestoreData=null;

@@ -56,7 +56,20 @@ create table if not exists requests (
   created_at timestamptz default now()
 );
 
--- RLS 비활성화 (소규모 내부 사용 — 필요시 나중에 활성화)
+-- 5. 비번 분리 테이블 (RLS on, service role 만 접근 가능)
+-- api/auth.js 와 api/reset.js 가 service key 로 접근. 클라이언트 (publishable key) 는 못 읽음.
+create table if not exists secrets (
+  id text primary key default 'main',
+  admin_pw text not null default '7598',
+  approver_pw text not null default '0000',
+  approver_pw_set boolean not null default false,
+  updated_at timestamptz default now()
+);
+insert into secrets (id) values ('main') on conflict (id) do nothing;
+alter table secrets enable row level security;
+-- 정책 없음 → anon 모든 access 거부. service_role 은 RLS 우회.
+
+-- RLS — secrets 외 다른 테이블은 비활성화 (소규모 내부 사용)
 alter table config disable row level security;
 alter table employees disable row level security;
 alter table holidays disable row level security;
