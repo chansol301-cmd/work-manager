@@ -78,6 +78,11 @@ async function getAll() {
 }
 
 export default async function handler(req, res) {
+  // CRON_SECRET 미설정 시에도 거부 (이전엔 빈 secret + "Bearer " 와 일치 가능)
+  if (!process.env.CRON_SECRET) {
+    console.error('CRON_SECRET env var not configured');
+    return res.status(500).json({ error: 'Server misconfigured: CRON_SECRET not set' });
+  }
   const authHeader = req.headers.authorization;
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return res.status(401).end();

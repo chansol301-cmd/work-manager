@@ -79,3 +79,43 @@ alter table config drop column if exists approver_pw_set;
 ```
 
 ⚠️ **비가역**. `secrets` 의 데이터가 정상이고 fallback 발동한 적이 한참 없을 때 별건으로 진행 권장.
+
+---
+
+# 환경변수 설정 (필수)
+
+다음 환경변수가 모두 설정돼야 정상 동작합니다. **하나라도 비어있으면 해당 endpoint 가 500 응답.**
+
+| 환경변수 | 어디서 사용 | 설정 안 하면 |
+|---|---|---|
+| `SUPABASE_URL` | 모든 `api/*` | 모든 알림/로그인 동작 X |
+| `SUPABASE_SERVICE_KEY` | 모든 `api/*` | 모든 알림/로그인 동작 X |
+| `TELEGRAM_BOT_TOKEN` | bot/cron/webhook | 텔레그램 알림 안 감 |
+| `WEBHOOK_SECRET` | webhook | webhook 500 응답 (이전엔 누구나 호출 가능했음 — 이제 차단됨) |
+| `CRON_SECRET` | cron | cron 500 응답 (이전엔 빈 secret 가 통과 가능했음 — 이제 차단됨) |
+| `TELEGRAM_WEBHOOK_SECRET` | bot | bot endpoint 500 응답 (이전엔 인증 X 였음 — 이제 차단됨) ⚠️ **신규** |
+
+## Vercel 환경변수 등록
+
+Vercel 대시보드 → 프로젝트 → **Settings → Environment Variables** 에서 위 변수 모두 등록.
+
+## TELEGRAM_WEBHOOK_SECRET 설정 (신규)
+
+1. 임의의 강한 secret 문자열 생성 (예: `openssl rand -hex 32` 또는 임의의 영숫자 32자)
+2. Vercel 환경변수에 `TELEGRAM_WEBHOOK_SECRET` 으로 등록
+3. **Telegram setWebhook 다시 호출** — 같은 secret 을 `secret_token` 파라미터로 전달:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://work-manager-xi.vercel.app/api/bot",
+    "secret_token": "<위에서 생성한 secret>"
+  }'
+```
+
+이렇게 하면 텔레그램이 매 요청에 `X-Telegram-Bot-Api-Secret-Token` 헤더로 secret 을 보내고, `bot.js` 가 그걸 검증합니다. 외부에서 가짜 메시지 못 보냄.
+
+## 검증
+
+설정 후 — 텔레그램 봇에 `/start 이름` 보내서 정상 응답 오면 OK. 응답 없으면 Vercel Logs 에서 500 에러 확인.

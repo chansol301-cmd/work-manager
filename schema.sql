@@ -22,6 +22,8 @@ create table if not exists employees (
   name text not null,
   role text default '팀원',
   telegram_chat_id text default '',
+  active boolean default true,
+  retired_at text default '',
   created_at timestamptz default now()
 );
 

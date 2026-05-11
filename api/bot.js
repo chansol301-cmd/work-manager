@@ -6,6 +6,8 @@
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+// Telegram setWebhook 의 secret_token 과 동일하게 설정 (MIGRATION.md 참조)
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
 async function sendTelegram(chatId, text) {
   await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
@@ -49,6 +51,15 @@ async function updateApproverChatId(chatId) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
+
+  // Telegram secret_token 검증 — 미설정 시 거부 (가짜 메시지 차단)
+  if (!TELEGRAM_WEBHOOK_SECRET) {
+    console.error('TELEGRAM_WEBHOOK_SECRET env var not configured');
+    return res.status(500).json({ error: 'Server misconfigured: TELEGRAM_WEBHOOK_SECRET not set' });
+  }
+  if (req.headers['x-telegram-bot-api-secret-token'] !== TELEGRAM_WEBHOOK_SECRET) {
+    return res.status(401).end();
+  }
 
   const update = req.body;
   const msg = update.message;

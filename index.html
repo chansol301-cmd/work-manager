@@ -617,7 +617,8 @@ function getLatest(eid){return REQUESTS.filter(r=>r.eid===eid&&r.status!=='cance
 
 async function loadAll(){
   const[cfgRes,empRes,holRes,reqRes]=await Promise.all([
-    db.from('config').select('*').eq('id','main').single(),
+    // 비번 컬럼은 명시적으로 제외 (마이그레이션 전 config 에 남아있어도 클라이언트 노출 X)
+    db.from('config').select('id,biz,country,lunch_start,lunch_end,schedule,approver_pw_set,approver_telegram_chat_id,updated_at').eq('id','main').single(),
     db.from('employees').select('*').order('created_at'),
     db.from('holidays').select('*').order('date'),
     db.from('requests').select('*').order('created_at',{ascending:false}),
