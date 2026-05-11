@@ -8,6 +8,7 @@ create table if not exists config (
   admin_pw text default '7598',
   approver_pw text default '0000',
   approver_pw_set boolean default false,
+  approver_telegram_chat_id text default '',
   schedule jsonb default '{"mon":{"s":"09:00","e":"18:00"},"tue":{"s":"09:00","e":"18:00"},"wed":{"s":"09:00","e":"18:00"},"thu":{"s":"09:00","e":"18:00"},"fri":{"s":"09:00","e":"18:00"},"sat":{"s":"","e":""},"sun":{"s":"","e":""}}'::jsonb,
   updated_at timestamptz default now()
 );
@@ -20,6 +21,7 @@ create table if not exists employees (
   id text primary key default gen_random_uuid()::text,
   name text not null,
   role text default '팀원',
+  telegram_chat_id text default '',
   created_at timestamptz default now()
 );
 
@@ -47,7 +49,7 @@ create table if not exists requests (
   hours numeric default 0,
   daehu numeric default 0,
   reason text default '',
-  status text default 'pending' check (status in ('pending','approved','rejected')),
+  status text default 'pending' check (status in ('pending','approved','rejected','cancelled')),
   comment text default '',
   expiry text,
   is_leave boolean default false,

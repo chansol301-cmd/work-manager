@@ -15,13 +15,12 @@ async function sendTelegram(chatId, text) {
   });
 }
 
-async function findEmployee(name) {
+async function findEmployees(name) {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/employees?name=eq.${encodeURIComponent(name)}&select=*`,
     { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } }
   );
-  const rows = await res.json();
-  return rows[0] || null;
+  return res.json();
 }
 
 async function updateChatId(empId, chatId) {
@@ -69,14 +68,21 @@ export default async function handler(req, res) {
       return res.status(200).end();
     }
 
-    const emp = await findEmployee(name);
-    if (!emp) {
+    const emps = await findEmployees(name);
+    if (!emps || emps.length === 0) {
       await sendTelegram(chatId,
         `❌ <b>${name}</b> 이름의 직원을 찾을 수 없습니다.\n관리자에게 문의하거나 이름을 정확히 입력해주세요.`
       );
       return res.status(200).end();
     }
+    if (emps.length > 1) {
+      await sendTelegram(chatId,
+        `⚠️ <b>${name}</b> 이름의 직원이 ${emps.length}명 있습니다. 동명이인 구분이 필요합니다.\n관리자에게 문의하여 본인 식별 후 등록을 도와달라고 요청해주세요.`
+      );
+      return res.status(200).end();
+    }
 
+    const emp = emps[0];
     await updateChatId(emp.id, chatId);
     await sendTelegram(chatId,
       `✅ <b>${emp.name}</b>님, 등록됐습니다!\n\n` +
