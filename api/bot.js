@@ -18,8 +18,13 @@ async function sendTelegram(chatId, text) {
 }
 
 async function findEmployees(name) {
+  // trim + case-insensitive 매칭 (영문 이름의 대소문자 차이 흡수)
+  const norm = (name || '').trim();
+  if (!norm) return [];
+  // ilike 와일드카드 escape (%, _, \)
+  const escaped = norm.replace(/[%_\\]/g, (c) => '\\' + c);
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/employees?name=eq.${encodeURIComponent(name)}&select=*`,
+    `${SUPABASE_URL}/rest/v1/employees?name=ilike.${encodeURIComponent(escaped)}&select=*`,
     { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } }
   );
   return res.json();

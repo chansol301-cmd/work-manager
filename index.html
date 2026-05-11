@@ -354,6 +354,10 @@ textarea{resize:vertical;min-height:64px}
     <div class="modal-title" style="color:#A32D2D">전체 데이터 리셋</div>
     <div class="confirm-box">정말로 모든 데이터를 삭제하겠습니까?<br><br>삭제되는 항목:<br>- 전체 직원 정보<br>- 전체 신청 내역<br>- 공휴일 목록<br>- 모든 설정<br><br><strong>이 작업은 되돌릴 수 없습니다.</strong></div>
     <div style="margin-bottom:1rem">
+      <label class="fl">관리자 비밀번호 (이중 확인)</label>
+      <input type="password" id="reset-admin-pw" placeholder="비밀번호" autocomplete="new-password">
+    </div>
+    <div style="margin-bottom:1rem">
       <label class="fl">확인을 위해 <strong>리셋</strong> 을 입력하세요</label>
       <input type="text" id="reset-confirm-text" placeholder="리셋">
     </div>
@@ -739,14 +743,15 @@ async function doResetApr(){
 async function doFullReset(){
   const txt=document.getElementById('reset-confirm-text').value.trim();
   if(txt!=='리셋'){showToast('"리셋" 을 정확히 입력하세요');return;}
-  const adminPw=prompt('관리자 비밀번호를 한 번 더 입력하세요:');
-  if(adminPw===null||adminPw==='')return;
+  const adminPw=document.getElementById('reset-admin-pw').value;
+  if(!adminPw){showToast('관리자 비밀번호를 입력하세요');return;}
   const j=await apiCall('/api/reset',{adminPassword:adminPw,confirm:'리셋'},'admin');
   if(!j.ok){showToast('리셋 실패: '+(j.reason==='wrong-pw'?'비밀번호 불일치':j.reason==='wrong-confirm'?'확인 텍스트 불일치':'오류'));return;}
   REQUESTS=[];EMPLOYEES=[];HOLIDAYS=[];
   CFG.biz='';CFG.country='';CFG.approver_pw_set=false;
   closeM('full-reset-confirm');
   document.getElementById('reset-confirm-text').value='';
+  document.getElementById('reset-admin-pw').value='';
   await apiCall('/api/auth',{action:'logout'},'admin');clearToken('admin');
   mode='user';applyMode();buildNav();goPage('dash');
   showToast('전체 리셋 완료');

@@ -16,6 +16,10 @@ const HEADERS = {
 // 토큰 만료: admin 1시간, approver 8시간
 const TOKEN_EXPIRY = { admin: 3600, approver: 8 * 3600 };
 
+// brute-force 따속 + timing attack 보호 — 모든 login 응답에 일정 delay
+const LOGIN_DELAY_MS = 300;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function loadSecrets() {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/secrets?id=eq.main&select=*`, { headers: HEADERS });
@@ -83,6 +87,8 @@ export default async function handler(req, res) {
   try {
     // ── login ─────────────────────────────────────────────
     if (action === 'login') {
+      // 항상 일정 delay (성공/실패 동일) — brute-force 따속 + timing attack 보호
+      await sleep(LOGIN_DELAY_MS);
       if (!type || !password) return res.status(400).json({ ok: false });
       const s = await loadSecrets();
       const stored = type === 'admin' ? s.admin_pw : s.approver_pw;
