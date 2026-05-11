@@ -587,9 +587,9 @@ function getBal(eid){
     .filter(r=>r.type==='use')
     .reduce((a,r)=>a+parseFloat(r.hours||0),0));
 
-  /* ── 총 잔여 ── */
+  /* ── 총 잔여 (승인 기준만, pending 제외) ── */
   const confirmedBal=rf(activeBuckets.reduce((a,b)=>a+b.remain,0));
-  const bal=rf(Math.max(0,confirmedBal+pendingEarned-pendingUsed));
+  const bal=confirmedBal;
 
   /* ── 소멸 알람: 만료일별 잔여 (15일 이내) ── */
   const alerts=activeBuckets
@@ -1129,7 +1129,7 @@ async function submitReq(eid){
       showToast('승인된 잔여가 없습니다. 미승인 신청이 승인된 후 사용하세요.');return;
     }
     if(hours>confirmedBal){
-      showToast(`승인된 잔여(${confirmedBal}h)를 초과합니다${curBal.pendingEarned>0?' · 미승인 +'+curBal.pendingEarned+'h 포함 총 '+curBal.bal+'h':''}`);return;
+      showToast(`승인된 잔여(${confirmedBal}h)를 초과합니다${curBal.pendingEarned>0?' · 미승인 +'+curBal.pendingEarned+'h 대기 중':''}`);return;
     }
     /* 차감될 버킷 미리 계산해서 표시 */
     if(curBal.balByExpiry&&curBal.balByExpiry.length>0){

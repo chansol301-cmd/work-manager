@@ -39,36 +39,52 @@ async function getRequests(eid) {
   return res.json();
 }
 
-// FIFO 잔여 계산 — 만료일 빠른 것부터 차감
+// FIFO 잔여 계산 — index.html getBal() 과 동일 로직 (승인 기준, pending 은 정보 전용)
+// 모든 적립 buckets 에서 발생일순 사용 신청을 만료 빠른 순으로 차감 → 오늘 시점 살아있는 잔여
 function calcBalance(requests) {
   const today = new Date().toISOString().slice(0, 10);
   const approved = requests.filter(r => r.status === 'approved');
   const pending = requests.filter(r => r.status === 'pending');
 
-  // 만료일별 버킷 (만료 안 된 것만)
-  const buckets = approved
-    .filter(r => r.type !== 'use' && r.expiry && r.expiry >= today)
-    .map(r => ({ expiry: r.expiry, remain: parseFloat(r.daehu || 0) }))
-    .sort((a, b) => a.expiry.localeCompare(b.expiry));
-
-  // 사용량을 만료일 빠른 버킷부터 FIFO 차감
-  const usedList = approved
+  const earnedAll = approved
+    .filter(r => r.type !== 'use')
+    .sort((a, b) => (a.expiry || '9999').localeCompare(b.expiry || '9999'));
+  const usedAll = approved
     .filter(r => r.type === 'use')
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  for (const u of usedList) {
+  // 만료일별 buckets (만료된 것 포함 — 그래야 과거 사용을 만료된 적립부터 차감 가능)
+  const bucketMap = {};
+  earnedAll.forEach(r => {
+    const key = r.expiry || '9999';
+    if (!bucketMap[key]) bucketMap[key] = { expiry: key, total: 0, remain: 0 };
+    bucketMap[key].total += parseFloat(r.daehu || 0);
+    bucketMap[key].remain += parseFloat(r.daehu || 0);
+  });
+  const allBuckets = Object.values(bucketMap)
+    .map(b => ({ ...b, total: rf(b.total), remain: rf(b.remain) }))
+    .sort((a, b) => a.expiry.localeCompare(b.expiry));
+
+  for (const u of usedAll) {
     let left = parseFloat(u.hours || 0);
-    for (const b of buckets) {
+    for (const b of allBuckets) {
       if (left <= 0) break;
-      const deduct = Math.min(b.remain, left);
-      b.remain = rf(b.remain - deduct);
-      left = rf(left - deduct);
+      const d = Math.min(b.remain, left);
+      b.remain = rf(b.remain - d);
+      left = rf(left - d);
     }
   }
 
-  const confirmed = rf(buckets.reduce((a, b) => a + b.remain, 0));
+  const activeBuckets = allBuckets.filter(b => b.expiry >= today && b.remain > 0);
+  const bal = rf(activeBuckets.reduce((a, b) => a + b.remain, 0));
 
-  // pending 포함 잔여
+  const balByExpiry = activeBuckets.map(b => ({
+    expiry: b.expiry,
+    remain: b.remain,
+    diff: Math.round((new Date(b.expiry) - new Date()) / 864e5),
+  }));
+
+  // pending 은 정보 전용 (잔여에는 합산하지 않음)
   const pendingEarned = rf(pending
     .filter(r => r.type !== 'use' && (!r.expiry || r.expiry >= today))
     .reduce((a, r) => a + parseFloat(r.daehu || 0), 0));
@@ -76,17 +92,7 @@ function calcBalance(requests) {
     .filter(r => r.type === 'use')
     .reduce((a, r) => a + parseFloat(r.hours || 0), 0));
 
-  const bal = rf(Math.max(0, confirmed + pendingEarned - pendingUsed));
-
-  // 만료일별 잔여 목록
-  const balByExpiry = buckets
-    .filter(b => b.remain > 0)
-    .map(b => {
-      const diff = Math.round((new Date(b.expiry) - new Date()) / 864e5);
-      return { expiry: b.expiry, remain: b.remain, diff };
-    });
-
-  return { bal, confirmed, pendingEarned, pendingUsed, balByExpiry };
+  return { bal, balByExpiry, pendingEarned, pendingUsed };
 }
 
 // 만료일별 잔여 텍스트 생성
@@ -127,7 +133,7 @@ export default async function handler(req, res) {
       const allReqs = await getRequests(record.eid);
       const { bal, pendingEarned, pendingUsed, balByExpiry } = calcBalance(allReqs);
       const pendingStr = (pendingEarned > 0 || pendingUsed > 0)
-        ? ` (미승인 ${pendingEarned > 0 ? '+' + pendingEarned + 'h' : ''}${pendingUsed > 0 ? ' -' + pendingUsed + 'h' : ''} 포함)` : '';
+        ? ` (미승인 ${pendingEarned > 0 ? '+' + pendingEarned + 'h' : ''}${pendingUsed > 0 ? ' -' + pendingUsed + 'h' : ''} 대기)` : '';
 
       const msg =
         `📋 <b>새 신청이 들어왔습니다</b>\n` +
@@ -153,7 +159,7 @@ export default async function handler(req, res) {
         const allReqs = await getRequests(record.eid);
         const { bal, pendingEarned, pendingUsed, balByExpiry } = calcBalance(allReqs);
         const pendingStr = (pendingEarned > 0 || pendingUsed > 0)
-          ? ` (미승인 ${pendingEarned > 0 ? '+' + pendingEarned + 'h' : ''}${pendingUsed > 0 ? ' -' + pendingUsed + 'h' : ''} 포함)` : '';
+          ? ` (미승인 ${pendingEarned > 0 ? '+' + pendingEarned + 'h' : ''}${pendingUsed > 0 ? ' -' + pendingUsed + 'h' : ''} 대기)` : '';
 
         let msg = '';
         if (record.type === 'use') {
