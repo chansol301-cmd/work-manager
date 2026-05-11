@@ -510,6 +510,24 @@ function showToast(m){const t=document.getElementById('toast');t.textContent=m;t
 function toMin(t){if(!t||!t.includes(':'))return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
 function rf(x){return Math.round(x*2)/2;}
 function today(){return new Date().toISOString().slice(0,10);}
+
+/* ── 세션 토큰 helper (sessionStorage 기반, 탭 닫으면 사라짐) ── */
+function getToken(role){return sessionStorage.getItem('wm-token-'+role)||'';}
+function setToken(role,token){sessionStorage.setItem('wm-token-'+role,token);}
+function clearToken(role){sessionStorage.removeItem('wm-token-'+role);}
+
+async function apiCall(endpoint,body,role){
+  const headers={'Content-Type':'application/json'};
+  if(role){const tk=getToken(role);if(tk)headers.Authorization='Bearer '+tk;}
+  let r;
+  try{r=await fetch(endpoint,{method:'POST',headers,body:JSON.stringify(body||{})});}
+  catch(e){return{ok:false,error:e.message};}
+  if(r.status===401&&role){
+    clearToken(role);showToast('세션 만료 — 다시 로그인하세요');
+    if(typeof mode!=='undefined'&&mode!=='user'){mode='user';applyMode&&applyMode();buildNav&&buildNav();goPage&&goPage('dash');}
+  }
+  return r.json().catch(()=>({}));
+}
 function eName(id){return(EMPLOYEES.find(e=>e.id===id)||{name:'?'}).name;}
 function isHoliday(d){if(!d)return false;const dow=new Date(d).getDay();if(dow===0||dow===6)return true;return HOLIDAYS.some(h=>h.date===d);}
 function getSchedForDate(d){if(!d)return null;const dow=new Date(d).getDay();const key=DKEYS[dow===0?6:dow-1];const s=CFG.schedule[key];return(s&&s.s&&s.e)?s:null;}
@@ -657,7 +675,8 @@ async function saveConfig(){
   const ls=lsEl?.value||CFG.lunch.s;
   const le=leEl?.value||CFG.lunch.e;
   CFG.biz=biz;CFG.country=country;CFG.lunch={s:ls,e:le};CFG.schedule=sched;
-  await db.from('config').upsert({id:'main',biz,country,lunch_start:ls,lunch_end:le,schedule:sched});
+  const j=await apiCall('/api/admin',{action:'saveConfig',payload:{biz,country,lunch_start:ls,lunch_end:le,schedule:sched}},'admin');
+  if(!j.ok){showToast('저장 실패');return;}
   updateLogo();showToast('설정 저장됨');
 }
 
@@ -672,16 +691,18 @@ function eyeTgl(id,btn){const el=document.getElementById(id);el.type=el.type==='
 
 async function doAdmLogin(){
   const pw=document.getElementById('adm-pw').value;
-  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',type:'admin',password:pw})});
-  const j=await r.json().catch(()=>({}));
-  if(j.ok){mode='admin';closeM('adm-login');applyMode();buildNav();goPage('mgmt');}
+  const j=await apiCall('/api/auth',{action:'login',type:'admin',password:pw});
+  if(j.ok&&j.token){
+    setToken('admin',j.token);
+    mode='admin';closeM('adm-login');applyMode();buildNav();goPage('mgmt');
+  }
   else{document.getElementById('adm-err').textContent='비밀번호가 올바르지 않습니다.';}
 }
 async function doAprLogin(){
   const pw=document.getElementById('apr-pw').value;
-  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',type:'approver',password:pw})});
-  const j=await r.json().catch(()=>({}));
-  if(j.ok){
+  const j=await apiCall('/api/auth',{action:'login',type:'approver',password:pw});
+  if(j.ok&&j.token){
+    setToken('approver',j.token);
     closeM('apr-login');
     CFG.approver_pw_set=!!j.approver_pw_set;
     if(!j.approver_pw_set){
@@ -704,15 +725,13 @@ function chkSP(){
 async function confirmSP(){
   const p1=document.getElementById('sp1').value,p2=document.getElementById('sp2').value;
   if(!p1||p1!==p2)return;
-  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set-pw',type:'approver',newPassword:p1})});
-  const j=await r.json().catch(()=>({}));
+  const j=await apiCall('/api/auth',{action:'set-pw',type:'approver',newPassword:p1},'approver');
   if(!j.ok){showToast('비밀번호 설정 실패');return;}
   CFG.approver_pw_set=true;
   closeM('set-pw');mode='approver';applyMode();buildNav();goPage('approve');showToast('비밀번호 설정 완료');
 }
 async function doResetApr(){
-  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reset-pw',type:'approver'})});
-  const j=await r.json().catch(()=>({}));
+  const j=await apiCall('/api/auth',{action:'reset-pw',type:'approver'},'admin');
   if(!j.ok){showToast('초기화 실패');return;}
   CFG.approver_pw_set=false;
   closeM('reset-confirm');showToast('승인자 비밀번호 0000으로 초기화됨');
@@ -722,18 +741,18 @@ async function doFullReset(){
   if(txt!=='리셋'){showToast('"리셋" 을 정확히 입력하세요');return;}
   const adminPw=prompt('관리자 비밀번호를 한 번 더 입력하세요:');
   if(adminPw===null||adminPw==='')return;
-  const r=await fetch('/api/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({adminPassword:adminPw,confirm:'리셋'})});
-  const j=await r.json().catch(()=>({}));
+  const j=await apiCall('/api/reset',{adminPassword:adminPw,confirm:'리셋'},'admin');
   if(!j.ok){showToast('리셋 실패: '+(j.reason==='wrong-pw'?'비밀번호 불일치':j.reason==='wrong-confirm'?'확인 텍스트 불일치':'오류'));return;}
   REQUESTS=[];EMPLOYEES=[];HOLIDAYS=[];
   CFG.biz='';CFG.country='';CFG.approver_pw_set=false;
   closeM('full-reset-confirm');
   document.getElementById('reset-confirm-text').value='';
+  await apiCall('/api/auth',{action:'logout'},'admin');clearToken('admin');
   mode='user';applyMode();buildNav();goPage('dash');
   showToast('전체 리셋 완료');
 }
-function logoutAdm(){mode='user';applyMode();buildNav();goPage('dash');}
-function logoutApr(){mode='user';applyMode();buildNav();goPage('dash');}
+async function logoutAdm(){await apiCall('/api/auth',{action:'logout'},'admin');clearToken('admin');mode='user';applyMode();buildNav();goPage('dash');}
+async function logoutApr(){await apiCall('/api/auth',{action:'logout'},'approver');clearToken('approver');mode='user';applyMode();buildNav();goPage('dash');}
 
 function applyMode(){
   const badge=document.getElementById('mode-badge'),wrap=document.getElementById('topbar-btns');
@@ -1277,7 +1296,7 @@ function renderApprovePage(){
   done.forEach(r=>{
     const ss={approved:'sa',rejected:'sr'},st2={approved:'승인',rejected:'반려'};
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${eName(r.eid)}</td><td><span class="badge ${tc[r.type]}">${tl[r.type]}</span></td><td>${r.date}</td><td><span class="badge ${ss[r.status]}">${st2[r.status]}</span></td><td style="font-size:11px;color:#888;font-style:italic">${r.comment||'-'}</td><td><button class="btn sm dg" onclick="delReq('${r.id}')">×</button></td>`;
+    tr.innerHTML=`<td>${eName(r.eid)}</td><td><span class="badge ${tc[r.type]}">${tl[r.type]}</span></td><td>${r.date}</td><td><span class="badge ${ss[r.status]}">${st2[r.status]}</span></td><td style="font-size:11px;color:#888;font-style:italic">${r.comment||'-'}</td><td>${(mode==='admin'||mode==='approver')?`<button class="btn sm dg" onclick="delReq('${r.id}')">×</button>`:''}</td>`;
     db2.appendChild(tr);
   });
 }
@@ -1292,8 +1311,8 @@ function openAct(id,action){
 async function confirmAction(){
   if(!pendingAct)return;
   const comment=document.getElementById('act-comment').value.trim();
-  const{error}=await db.from('requests').update({status:pendingAct.action,comment}).eq('id',pendingAct.id);
-  if(error){showToast('오류: '+error.message);return;}
+  const j=await apiCall('/api/approve',{id:pendingAct.id,status:pendingAct.action,comment},'approver');
+  if(!j.ok){showToast('오류: '+(j.error||j.reason||'처리 실패'));return;}
   const r=REQUESTS.find(x=>x.id===pendingAct.id);
   if(r){r.status=pendingAct.action;r.comment=comment;}
   closeM('action');pendingAct=null;buildNav();renderApprovePage();
@@ -1302,7 +1321,12 @@ async function confirmAction(){
   renderDash();showToast(r.status==='approved'?'승인됐습니다':'반려됐습니다');
 }
 async function delReq(id){
-  await db.from('requests').delete().eq('id',id);
+  // 승인자/관리자 누구나 정리 가능 — admin 토큰 우선, 없으면 approver token 으로 시도
+  const role=getToken('admin')?'admin':'approver';
+  const endpoint=role==='admin'?'/api/admin':'/api/approve';
+  const body=role==='admin'?{action:'deleteRequest',payload:{id}}:{action:'delete',id};
+  const j=await apiCall(endpoint,body,role);
+  if(!j.ok){showToast('삭제 실패');return;}
   REQUESTS=REQUESTS.filter(r=>r.id!==id);renderApprovePage();
 }
 
@@ -1397,9 +1421,9 @@ function renderEmps(isAdm){
 async function addEmp(){
   const n=document.getElementById('new-emp-n').value.trim(),r=document.getElementById('new-emp-r').value.trim()||'팀원';
   if(!n)return;
-  const{data,error}=await db.from('employees').insert({name:n,role:r}).select().single();
-  if(error){showToast('오류: '+error.message);return;}
-  EMPLOYEES.push(data);
+  const j=await apiCall('/api/admin',{action:'addEmployee',payload:{name:n,role:r}},'admin');
+  if(!j.ok){showToast('오류: '+(j.error||'추가 실패'));return;}
+  EMPLOYEES.push(j.data);
   document.getElementById('new-emp-n').value='';document.getElementById('new-emp-r').value='';
   document.getElementById('emp-form').classList.remove('open');
   buildNav();renderEmps(true);
@@ -1430,12 +1454,8 @@ async function saveEditHol(){
   const newDate=document.getElementById('edit-hol-d').value;
   const newName=document.getElementById('edit-hol-n').value.trim();
   if(!newDate||!newName)return;
-  if(orig!==newDate){
-    await db.from('holidays').delete().eq('date',orig);
-    await db.from('holidays').insert({date:newDate,name:newName});
-  } else {
-    await db.from('holidays').update({name:newName}).eq('date',orig);
-  }
+  const j=await apiCall('/api/admin',{action:'updateHoliday',payload:{origDate:orig,newDate,newName}},'admin');
+  if(!j.ok){showToast('수정 실패');return;}
   HOLIDAYS=HOLIDAYS.filter(h=>h.date!==orig);
   HOLIDAYS.push({date:newDate,name:newName});
   closeM('edit-hol');renderHols(true);showToast('공휴일 수정됨');
@@ -1443,7 +1463,8 @@ async function saveEditHol(){
 async function addHol(){
   const date=document.getElementById('new-hol-d').value,name=document.getElementById('new-hol-n').value.trim();
   if(!date||!name)return;
-  await db.from('holidays').upsert({date,name});
+  const j=await apiCall('/api/admin',{action:'upsertHoliday',payload:{date,name}},'admin');
+  if(!j.ok){showToast('추가 실패');return;}
   HOLIDAYS=HOLIDAYS.filter(h=>h.date!==date);HOLIDAYS.push({date,name});
   document.getElementById('new-hol-d').value='';document.getElementById('new-hol-n').value='';
   document.getElementById('hol-form').classList.remove('open');renderHols(true);showToast('공휴일 추가됨');
@@ -1462,8 +1483,8 @@ async function retireEmp(id,name){
 }
 /* 복직 처리 */
 async function unretireEmp(id,name){
-  const{error}=await db.from('employees').update({active:true,retired_at:null}).eq('id',id);
-  if(error){showToast('오류: '+error.message);return;}
+  const j=await apiCall('/api/admin',{action:'updateEmployee',payload:{id,updates:{active:true,retired_at:null}}},'admin');
+  if(!j.ok){showToast('오류: '+(j.error||'복직 실패'));return;}
   const emp=EMPLOYEES.find(e=>e.id===id);
   if(emp){emp.active=true;emp.retired_at=null;}
   buildNav();renderEmps(mode==='admin');showToast(`${name}님 복직 처리됐습니다`);
@@ -1479,8 +1500,8 @@ async function confirmDel(){
   const{type,id,name}=pendingDelId;
   if(type==='retire'){
     const retireDate=new Date().toISOString().slice(0,10);
-    const{error}=await db.from('employees').update({active:false,retired_at:retireDate}).eq('id',id);
-    if(error){showToast('오류: '+error.message);closeM('del-confirm');return;}
+    const j=await apiCall('/api/admin',{action:'updateEmployee',payload:{id,updates:{active:false,retired_at:retireDate}}},'admin');
+    if(!j.ok){showToast('오류: '+(j.error||'퇴사 처리 실패'));closeM('del-confirm');return;}
     const emp=EMPLOYEES.find(e=>e.id===id);
     if(emp){emp.active=false;emp.retired_at=retireDate;}
     pendingDelId=null;closeM('del-confirm');
@@ -1488,12 +1509,14 @@ async function confirmDel(){
     return;
   }
   if(type==='emp'){
-    await db.from('employees').delete().eq('id',id);
+    const j=await apiCall('/api/admin',{action:'deleteEmployee',payload:{id}},'admin');
+    if(!j.ok){showToast('삭제 실패');closeM('del-confirm');return;}
     EMPLOYEES=EMPLOYEES.filter(e=>e.id!==id);
     REQUESTS=REQUESTS.filter(r=>r.eid!==id);
     buildNav();renderEmps(true);showToast('직원이 삭제됐습니다');
   } else if(type==='hol'){
-    await db.from('holidays').delete().eq('date',id);
+    const j=await apiCall('/api/admin',{action:'deleteHoliday',payload:{date:id}},'admin');
+    if(!j.ok){showToast('삭제 실패');closeM('del-confirm');return;}
     HOLIDAYS=HOLIDAYS.filter(h=>h.date!==id);
     renderHols(mode==='admin');showToast('공휴일이 삭제됐습니다');
   }
@@ -1569,8 +1592,8 @@ async function runFix(){
     else if(err.fix==='daehu_use')update.daehu=err.val;
     else if(err.fix==='expiry')update.expiry=err.val;
     else if(err.fix==='hours')update.hours=err.val;
-    const{error}=await db.from('requests').update(update).eq('id',err.id);
-    if(!error){fixed++;fixedMsgs.push(err.msg);}
+    const j=await apiCall('/api/admin',{action:'updateRequest',payload:{id:err.id,updates:update}},'admin');
+    if(j.ok){fixed++;fixedMsgs.push(err.msg);}
   }
   if(fixBtn){fixBtn.disabled=false;fixBtn.textContent='오류 수정';}
   if(fixed>0){
@@ -1593,6 +1616,8 @@ function startScheduledDiag(){
 }
 
 async function runScheduledDiag(){
+  // 자동 수정은 admin 모드 + admin 토큰 있을 때만 (다른 mode 면 진단만 detect)
+  if(mode!=='admin'||!getToken('admin'))return;
   const errors=runDiagSilent();
   if(errors.length===0){
     lastDiagResult={fixed:0,msgs:[],time:new Date().toLocaleString('ko-KR'),auto:true};
@@ -1605,8 +1630,8 @@ async function runScheduledDiag(){
       else if(err.fix==='daehu_use')update.daehu=err.val;
       else if(err.fix==='expiry')update.expiry=err.val;
       else if(err.fix==='hours')update.hours=err.val;
-      const{error}=await db.from('requests').update(update).eq('id',err.id);
-      if(!error){fixed++;fixedMsgs.push(err.msg);}
+      const j=await apiCall('/api/admin',{action:'updateRequest',payload:{id:err.id,updates:update}},'admin');
+      if(j.ok){fixed++;fixedMsgs.push(err.msg);}
     }
     if(fixed>0){
       await loadAll();
@@ -1698,23 +1723,8 @@ async function confirmRestore(){
   const data=pendingRestoreData;
   showToast('복원 중...');
   try{
-    await Promise.all([
-      db.from('requests').delete().neq('id','__none__'),
-      db.from('employees').delete().neq('id','__none__'),
-      db.from('holidays').delete().neq('date','__none__'),
-    ]);
-    if(data.employees.length>0)await db.from('employees').insert(data.employees.map(e=>({id:e.id,name:e.name,role:e.role,created_at:e.created_at})));
-    if(data.holidays.length>0)await db.from('holidays').insert(data.holidays);
-    if(data.requests.length>0){
-      const chunks=[];
-      for(let i=0;i<data.requests.length;i+=50)chunks.push(data.requests.slice(i,i+50));
-      for(const chunk of chunks)await db.from('requests').insert(chunk.map(r=>({id:r.id,eid:r.eid,type:r.type,date:r.date,start_time:r.start_time,end_time:r.end_time,hours:r.hours,daehu:r.daehu,reason:r.reason,status:r.status,comment:r.comment,expiry:r.expiry,is_leave:r.is_leave,created_at:r.created_at})));
-    }
-    if(data.config){
-      const c=data.config;
-      // 백업 복원: 일반 설정만 복원 (비번은 보안상 별도 흐름 — restoreBackup 에서 비번 복원 안 함)
-      await db.from('config').upsert({id:'main',biz:c.biz||'',country:c.country||'',lunch_start:c.lunch?.s||'12:00',lunch_end:c.lunch?.e||'13:00',schedule:c.schedule});
-    }
+    const j=await apiCall('/api/admin',{action:'restoreBackup',payload:data},'admin');
+    if(!j.ok){showToast('복원 실패: '+(j.error||j.reason||''));return;}
     await loadAll();
     closeM('restore-confirm');pendingRestoreData=null;
     buildNav();renderDash();

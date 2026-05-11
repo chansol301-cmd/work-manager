@@ -119,3 +119,83 @@ curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
 ## 검증
 
 설정 후 — 텔레그램 봇에 `/start 이름` 보내서 정상 응답 오면 OK. 응답 없으면 Vercel Logs 에서 500 에러 확인.
+
+---
+
+# RLS + 토큰 인증 마이그레이션 (4차)
+
+이번 변경으로 **모든 write 가 서버 API 통과** 후 service key 로 DB 조작합니다. RLS 활성화 + sessions 테이블 추가 필요.
+
+## 새 환경변수 (없으면 동작 X)
+
+| 변수 | 용도 |
+|---|---|
+| `SESSION_SECRET` | (예약 — 현재는 사용 X. 추후 JWT 전환 시) |
+
+(현재 토큰은 DB 의 sessions 테이블에 저장 — 별도 secret 불필요)
+
+## Supabase SQL Editor 에서 실행
+
+```sql
+-- 1) sessions 테이블 생성
+create table if not exists sessions (
+  token text primary key,
+  role text not null check (role in ('admin','approver')),
+  created_at timestamptz default now(),
+  expires_at timestamptz not null
+);
+alter table sessions enable row level security;
+-- 정책 없음 → anon 거부, service_role 만 접근
+
+-- 2) RLS 활성화 + 정책
+-- requests: select 허용, insert(pending), update(pending→cancelled) 만 허용
+alter table requests enable row level security;
+drop policy if exists "req_select_anon" on requests;
+drop policy if exists "req_insert_pending" on requests;
+drop policy if exists "req_cancel_only" on requests;
+create policy "req_select_anon"   on requests for select to anon using (true);
+create policy "req_insert_pending" on requests for insert to anon with check (status = 'pending');
+create policy "req_cancel_only"   on requests for update to anon
+  using (status = 'pending') with check (status = 'cancelled');
+
+-- employees / holidays / config: select 만 anon
+alter table employees enable row level security;
+drop policy if exists "emp_select_anon" on employees;
+create policy "emp_select_anon" on employees for select to anon using (true);
+
+alter table holidays enable row level security;
+drop policy if exists "hol_select_anon" on holidays;
+create policy "hol_select_anon" on holidays for select to anon using (true);
+
+alter table config enable row level security;
+drop policy if exists "cfg_select_anon" on config;
+create policy "cfg_select_anon" on config for select to anon using (true);
+```
+
+## ⚠️ 영향 — 적용 즉시
+
+- 직원의 신청 등록 / 본인 신청 취소: **계속 동작** (anon 정책 통과)
+- 승인/반려 / 직원 관리 / 공휴일 관리 / 설정 변경 / 백업 복원 / 리셋: **로그인 필요** (token 발급)
+- 로그인 안 한 anon 가 publishable key 로 직접 write 시도: **403 거부**
+
+## 검증
+
+브라우저 콘솔에서 (로그인 안 한 상태):
+```js
+const r = await fetch(SUPABASE_URL+'/rest/v1/employees', {
+  method:'POST', headers:{apikey:SUPABASE_KEY,'Content-Type':'application/json'},
+  body: JSON.stringify({name:'테스트'})
+});
+console.log(r.status);  // 403 또는 401 이어야 함
+```
+
+200 이 나오면 RLS 가 적용 안 된 상태.
+
+## 만료된 세션 정리 (선택)
+
+토큰 만료 시 자동 정리되지만 (verifyToken 호출 시), 누적 방지 위해 주기적 cleanup 가능:
+```sql
+delete from sessions where expires_at < now();
+```
+
+cron 으로 자동화하려면 Supabase 의 `pg_cron` 또는 Vercel cron 추가.

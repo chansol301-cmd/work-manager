@@ -1,10 +1,8 @@
 // api/auth.js
-// 비번 검증/변경/리셋 — 클라이언트가 비번을 직접 다루지 않도록 서버사이드로 분리
-//
-// 동작 방식:
-//   1) secrets 테이블이 존재하면 그쪽을 우선 사용 (마이그레이션 후)
-//   2) 없으면 config 테이블 fallback (마이그레이션 전 호환)
-// → push 후 사용자가 시간 두고 마이그레이션 SQL 실행해도 무중단
+// 비번 검증 + 세션 토큰 발급/검증/폐기
+// secrets 테이블 우선, config 테이블 fallback (마이그레이션 안전)
+
+import { randomBytes } from 'node:crypto';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -15,8 +13,10 @@ const HEADERS = {
   'Content-Type': 'application/json',
 };
 
+// 토큰 만료: admin 1시간, approver 8시간
+const TOKEN_EXPIRY = { admin: 3600, approver: 8 * 3600 };
+
 async function loadSecrets() {
-  // secrets 테이블 시도
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/secrets?id=eq.main&select=*`, { headers: HEADERS });
     if (r.ok) {
@@ -24,7 +24,6 @@ async function loadSecrets() {
       if (rows && rows[0]) return { source: 'secrets', ...rows[0] };
     }
   } catch (e) { /* fallback */ }
-  // config fallback
   const r2 = await fetch(
     `${SUPABASE_URL}/rest/v1/config?id=eq.main&select=admin_pw,approver_pw,approver_pw_set`,
     { headers: HEADERS }
@@ -35,12 +34,46 @@ async function loadSecrets() {
 
 async function saveSecrets(updates) {
   const cur = await loadSecrets();
-  const target = cur.source; // 'secrets' or 'config'
-  await fetch(`${SUPABASE_URL}/rest/v1/${target}?id=eq.main`, {
-    method: 'PATCH',
-    headers: HEADERS,
-    body: JSON.stringify(updates),
+  await fetch(`${SUPABASE_URL}/rest/v1/${cur.source}?id=eq.main`, {
+    method: 'PATCH', headers: HEADERS, body: JSON.stringify(updates),
   });
+}
+
+async function issueToken(role) {
+  const token = randomBytes(32).toString('hex');
+  const expSec = TOKEN_EXPIRY[role] || 3600;
+  const expires_at = new Date(Date.now() + expSec * 1000).toISOString();
+  await fetch(`${SUPABASE_URL}/rest/v1/sessions`, {
+    method: 'POST',
+    headers: { ...HEADERS, Prefer: 'return=minimal' },
+    body: JSON.stringify({ token, role, expires_at }),
+  });
+  return { token, expires_at };
+}
+
+export async function verifyToken(authHeader, requiredRole) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  const token = authHeader.slice(7);
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/sessions?token=eq.${encodeURIComponent(token)}&select=*`,
+    { headers: HEADERS }
+  );
+  const rows = await r.json();
+  if (!rows[0]) return null;
+  if (new Date(rows[0].expires_at) < new Date()) {
+    await fetch(`${SUPABASE_URL}/rest/v1/sessions?token=eq.${encodeURIComponent(token)}`,
+      { method: 'DELETE', headers: HEADERS });
+    return null;
+  }
+  if (requiredRole && rows[0].role !== requiredRole) return null;
+  return rows[0];
+}
+
+async function deleteToken(authHeader) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return;
+  const token = authHeader.slice(7);
+  await fetch(`${SUPABASE_URL}/rest/v1/sessions?token=eq.${encodeURIComponent(token)}`,
+    { method: 'DELETE', headers: HEADERS });
 }
 
 export default async function handler(req, res) {
@@ -48,34 +81,42 @@ export default async function handler(req, res) {
   const { action, type, password, newPassword } = req.body || {};
 
   try {
-    // ── login ─────────────────────────────────────────
+    // ── login ─────────────────────────────────────────────
     if (action === 'login') {
+      if (!type || !password) return res.status(400).json({ ok: false });
       const s = await loadSecrets();
       const stored = type === 'admin' ? s.admin_pw : s.approver_pw;
-      if (!stored) return res.status(200).json({ ok: false, reason: 'no-pw' });
-      const ok = stored === password;
-      const out = { ok };
-      if (ok && type === 'approver') out.approver_pw_set = !!s.approver_pw_set;
+      if (!stored || stored !== password) {
+        return res.status(200).json({ ok: false });
+      }
+      const { token, expires_at } = await issueToken(type);
+      const out = { ok: true, token, role: type, expires_at };
+      if (type === 'approver') out.approver_pw_set = !!s.approver_pw_set;
       return res.status(200).json(out);
     }
 
-    // ── set-pw (관리자 비번 변경 or 승인자 비번 변경) ─────
-    if (action === 'set-pw') {
-      if (!newPassword || newPassword.length < 4) {
-        return res.status(400).json({ ok: false, reason: 'too-short' });
-      }
-      if (type === 'approver' && newPassword === '0000') {
-        return res.status(400).json({ ok: false, reason: 'init-pw' });
-      }
-      const updates = type === 'admin'
-        ? { admin_pw: newPassword }
-        : { approver_pw: newPassword, approver_pw_set: true };
-      await saveSecrets(updates);
+    // ── logout ────────────────────────────────────────────
+    if (action === 'logout') {
+      await deleteToken(req.headers.authorization);
       return res.status(200).json({ ok: true });
     }
 
-    // ── reset-pw (관리자가 승인자 비번을 0000 으로 초기화) ──
+    // ── set-pw (approver token 필요 — 로그인 직후 받은 토큰) ──
+    if (action === 'set-pw') {
+      const session = await verifyToken(req.headers.authorization, 'approver');
+      if (!session) return res.status(401).json({ ok: false, reason: 'no-token' });
+      if (!newPassword || newPassword.length < 4) {
+        return res.status(400).json({ ok: false, reason: 'too-short' });
+      }
+      if (newPassword === '0000') return res.status(400).json({ ok: false, reason: 'init-pw' });
+      await saveSecrets({ approver_pw: newPassword, approver_pw_set: true });
+      return res.status(200).json({ ok: true });
+    }
+
+    // ── reset-pw (admin token 필요) ───────────────────────
     if (action === 'reset-pw') {
+      const session = await verifyToken(req.headers.authorization, 'admin');
+      if (!session) return res.status(401).json({ ok: false, reason: 'no-token' });
       if (type !== 'approver') return res.status(400).json({ ok: false });
       await saveSecrets({ approver_pw: '0000', approver_pw_set: false });
       return res.status(200).json({ ok: true });
