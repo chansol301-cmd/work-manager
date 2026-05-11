@@ -199,3 +199,34 @@ delete from sessions where expires_at < now();
 ```
 
 cron 으로 자동화하려면 Supabase 의 `pg_cron` 또는 Vercel cron 추가.
+
+---
+
+# Realtime 구독 활성화 (6차)
+
+새 신청 / 승인 / 직원 변경 시 다른 사용자 화면에 **새로고침 없이 즉시 반영** 되도록 Supabase Realtime publication 에 테이블 추가.
+
+## Supabase 콘솔 → SQL Editor 에서 실행
+
+```sql
+-- 기본 publication (supabase_realtime) 에 테이블 추가
+ALTER PUBLICATION supabase_realtime ADD TABLE requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE employees;
+ALTER PUBLICATION supabase_realtime ADD TABLE holidays;
+```
+
+⚠️ **이미 추가된 테이블**이면 에러 (`relation "..." is already member of publication`). 그건 무시해도 됨 — 그 테이블은 이미 활성화된 것.
+
+## 또는 UI 로
+
+1. Supabase 대시보드 → 좌측 **`Database`** → **`Replication`**
+2. **`supabase_realtime`** publication 클릭
+3. 우측 테이블 목록에서 `requests`, `employees`, `holidays` 토글 **on**
+
+## 검증
+
+`work-manager-xi.vercel.app` 을 두 개 탭으로 열고:
+- 한쪽에서 새 신청 등록
+- 다른 쪽 (새로고침 안 함) — 약 0.5초 후 자동으로 새 신청 표시
+
+표시 안 되면 SQL 실행 안 된 것 또는 publication 미설정.

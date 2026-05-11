@@ -1739,12 +1739,43 @@ async function confirmRestore(){
   }catch(err){showToast('복원 중 오류: '+err.message);}
 }
 
+/* ── Supabase Realtime — 다른 사용자의 변경을 즉시 화면에 반영 ── */
+let realtimeChannel=null;
+let realtimeReloadTimer=null;
+function startRealtime(){
+  if(realtimeChannel)return;
+  realtimeChannel=db.channel('wm-changes')
+    .on('postgres_changes',{event:'*',schema:'public',table:'requests'},onRealtimeChange)
+    .on('postgres_changes',{event:'*',schema:'public',table:'employees'},onRealtimeChange)
+    .on('postgres_changes',{event:'*',schema:'public',table:'holidays'},onRealtimeChange)
+    .subscribe();
+}
+function onRealtimeChange(){
+  /* debounce — 짧은 시간에 여러 변경이 와도 한 번만 reload */
+  if(realtimeReloadTimer)clearTimeout(realtimeReloadTimer);
+  realtimeReloadTimer=setTimeout(async()=>{
+    realtimeReloadTimer=null;
+    await loadAll();
+    buildNav();
+    const curPage=document.querySelector('.page.on');
+    if(!curPage){renderDash();return;}
+    const id=curPage.id;
+    if(id==='page-dash')renderDash();
+    else if(id==='page-approve')renderApprovePage();
+    else if(id==='page-mgmt')renderMgmt();
+    else if(id.startsWith('page-emp-'))renderEmpPage(id.replace('page-','emp-'));
+    else renderDash();
+  },400);
+}
+
 async function init(){
   loadLastDiag();
   await loadAll();
   applyMode();buildNav();renderDash();
   /* 정기 진단 시작 (매 24시간) */
   startScheduledDiag();
+  /* 실시간 업데이트 구독 */
+  startRealtime();
 }
 init();
 </script>
