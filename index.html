@@ -976,11 +976,11 @@ function updateTimeSels(eid){
   const etWrap=document.getElementById('rq-et-sel-'+eid);
   if(!stWrap||!etWrap)return;
 
-  /* 연장근무: 공식 퇴근시간 이후만 / 대체휴무 사용: 공식 근무시간 내만 / 휴일근무: 전체 */
+  /* 연장근무: 새벽 4시부터 23:30까지 (출근 전/퇴근 후 모두 인정, 정규 근무시간 안은 calcExtH 에서 자동 0h 처리)
+     대체휴무 사용: 공식 근무시간 내만 / 휴일근무: 전체 */
   let stFloor='',stCeil='';
   if(type==='ext'&&date){
-    const sched=getSchedForDate(date);
-    if(sched&&sched.e) stFloor=sched.e;
+    stFloor='04:00';
   } else if(type==='use'&&date){
     const sched=getSchedForDate(date);
     if(sched&&sched.s) stFloor=sched.s;
