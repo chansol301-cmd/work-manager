@@ -461,16 +461,20 @@ let EMPLOYEES=[];
 let HOLIDAYS=[];
 let REQUESTS=[];
 
-function timeSelect(val,onChange,fromTime,toTime){
+function timeSelect(val,onChange,fromTime,toTime,excludeFrom,excludeTo){
+  // excludeFrom <= tm < excludeTo 구간의 옵션은 제외 (공식 근무시간 빼기 등)
   const s=document.createElement('select');
   s.style.cssText='width:90px;font-size:12px';
   const empty=document.createElement('option');empty.value='';empty.textContent='—';s.appendChild(empty);
   const fMin=fromTime?toMin(fromTime):null;
   const tMin=toTime?toMin(toTime):null;
+  const exF=excludeFrom?toMin(excludeFrom):null;
+  const exT=excludeTo?toMin(excludeTo):null;
   HOURS_OPTS.forEach(t=>{
     const tm=toMin(t);
     if(fMin!==null&&tm<fMin)return;
     if(tMin!==null&&tm>tMin)return;
+    if(exF!==null&&exT!==null&&tm>=exF&&tm<exT)return;
     const o=document.createElement('option');o.value=t;o.textContent=t;
     if(t===val)o.selected=true;
     s.appendChild(o);
@@ -976,11 +980,16 @@ function updateTimeSels(eid){
   const etWrap=document.getElementById('rq-et-sel-'+eid);
   if(!stWrap||!etWrap)return;
 
-  /* 연장근무: 새벽 4시부터 23:30까지 (출근 전/퇴근 후 모두 인정, 정규 근무시간 안은 calcExtH 에서 자동 0h 처리)
+  /* 연장근무: 04:00~23:00 중 공식 근무시간 (sched.s ~ sched.e) 제외 → 출근 전 / 퇴근 후만 선택 가능
      대체휴무 사용: 공식 근무시간 내만 / 휴일근무: 전체 */
-  let stFloor='',stCeil='';
+  let stFloor='',stCeil='',stExcludeFrom='',stExcludeTo='';
   if(type==='ext'&&date){
     stFloor='04:00';
+    const sched=getSchedForDate(date);
+    if(sched&&sched.s&&sched.e){
+      stExcludeFrom=sched.s;  // 예: 07:30 — 정규 근무 시작 (제외 시작)
+      stExcludeTo=sched.e;    // 예: 17:30 — 정규 근무 종료 (포함됨 = 퇴근 후 시작 가능)
+    }
   } else if(type==='use'&&date){
     const sched=getSchedForDate(date);
     if(sched&&sched.s) stFloor=sched.s;
@@ -992,13 +1001,13 @@ function updateTimeSels(eid){
   const prevEt=etWrap.querySelector('select')?.value||'';
   const keepSt=(prevSt&&(!stFloor||toMin(prevSt)>=toMin(stFloor)))?prevSt:'';
 
-  /* 시작시간 드롭다운: stFloor ~ 23:00 (종료를 위해 최소 30분 여유) */
+  /* 시작시간 드롭다운: stFloor ~ 23:00 (종료를 위해 최소 30분 여유), 공식 근무시간 제외 */
   stWrap.innerHTML='';
   const stMax=stCeil||'23:00';
   const stSel=timeSelect(keepSt,()=>{
     refreshEtSel(eid,stFloor,null,stCeil);
     updatePreview(eid);
-  },stFloor,stMax);
+  },stFloor,stMax,stExcludeFrom,stExcludeTo);
   stWrap.appendChild(stSel);
 
   /* 종료시간 드롭다운: 시작시간 이후 ~ stCeil(있으면) or 23:30 */
@@ -1012,9 +1021,25 @@ function refreshEtSel(eid,stFloor,preferEt,etCeil){
   const curSt=stWrap?.querySelector('select')?.value||stFloor||'';
   /* 종료는 시작보다 30분 이상 뒤부터 */
   const etFrom=curSt?HOURS_OPTS.find(t=>toMin(t)>toMin(curSt))||'':'';
-  const etMax=etCeil||'23:30';
+
+  /* ext 연장근무 종료 ceil 동적 결정:
+     - 시작이 공식 근무 시작 (sched.s) 이전이면 → 종료 max = 공식 시작 (pre-shift 만 인정)
+     - 시작이 공식 종료 (sched.e) 이상이면 → 종료 max = 23:30 (post-shift) */
+  let dynEtCeil=etCeil;
+  const date=document.getElementById('rq-date-'+eid)?.value||'';
+  const type=empTypes[eid]||'ext';
+  if(!etCeil&&type==='ext'&&date&&curSt){
+    const sched=getSchedForDate(date);
+    if(sched&&sched.s){
+      const curStMin=toMin(curSt);
+      const schedSMin=toMin(sched.s);
+      if(curStMin!==null&&schedSMin!==null&&curStMin<schedSMin)dynEtCeil=sched.s;
+    }
+  }
+
+  const etMax=dynEtCeil||'23:30';
   const prevEt=preferEt||etWrap.querySelector('select')?.value||'';
-  const keepEt=(prevEt&&etFrom&&toMin(prevEt)>toMin(curSt)&&(!etCeil||toMin(prevEt)<=toMin(etCeil)))?prevEt:'';
+  const keepEt=(prevEt&&etFrom&&toMin(prevEt)>toMin(curSt)&&(!dynEtCeil||toMin(prevEt)<=toMin(dynEtCeil)))?prevEt:'';
   etWrap.innerHTML='';
   const etSel=timeSelect(keepEt,()=>updatePreview(eid),etFrom,etMax);
   etWrap.appendChild(etSel);
