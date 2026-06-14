@@ -518,6 +518,8 @@ function showToast(m){const t=document.getElementById('toast');t.textContent=m;t
 function toMin(t){if(!t||!t.includes(':'))return null;const[h,m]=t.split(':').map(Number);return h*60+m;}
 function rf(x){return Math.round(x*2)/2;}
 function today(){return new Date().toISOString().slice(0,10);}
+/* HTML attribute 안의 특수문자 (특히 apostrophe) 안전 escape */
+function escapeHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 /* ── 세션 토큰 helper (sessionStorage 기반, 탭 닫으면 사라짐) ── */
 function getToken(role){return sessionStorage.getItem('wm-token-'+role)||'';}
@@ -1433,9 +1435,9 @@ function renderEmps(isAdm){
     d.style.cssText=isInactive?'opacity:.45;':'';
     const badge=isInactive?'<span class="badge sc2" style="font-size:11px">퇴사</span>':'';
     const btns=isAdm?`
-      ${!isInactive?`<button class="btn sm wn" onclick="retireEmp('${e.id}','${e.name}')">퇴사</button>`
-                   :`<button class="btn sm" onclick="unretireEmp('${e.id}','${e.name}')">복직</button>`}
-      <button class="btn sm dg" onclick="openDelEmp('${e.id}')">삭제</button>`:'';
+      ${!isInactive?`<button class="btn sm wn" data-id="${escapeHtml(e.id)}" data-name="${escapeHtml(e.name)}" onclick="retireEmp(this.dataset.id,this.dataset.name)">퇴사</button>`
+                   :`<button class="btn sm" data-id="${escapeHtml(e.id)}" data-name="${escapeHtml(e.name)}" onclick="unretireEmp(this.dataset.id,this.dataset.name)">복직</button>`}
+      <button class="btn sm dg" data-id="${escapeHtml(e.id)}" onclick="openDelEmp(this.dataset.id)">삭제</button>`:'';
     d.innerHTML=`<div class="avt" style="${isInactive?'background:#f0eeea;color:#aaa':''}">${e.name.slice(0,2)}</div>
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:8px">
@@ -1469,7 +1471,8 @@ function renderHols(isAdm){
   if(!sorted.length){el.innerHTML='<div style="color:#888;font-size:12px;padding:.5rem 0">없음</div>';return;}
   sorted.forEach(h=>{
     const d=document.createElement('div');d.className='hol-row';
-    d.innerHTML=`<div style="font-size:12px;font-weight:500;min-width:100px">${h.date}</div><div style="flex:1;font-size:12px;color:#888">${h.name}</div>${isAdm?`<div class="rbtns"><button class="btn sm" onclick="openEditHol('${h.date}','${h.name}')">수정</button><button class="btn sm dg" onclick="delHol('${h.date}')">삭제</button></div>`:''}`;
+    /* data attribute + dataset 으로 apostrophe 등 특수문자 안전 처리 (이름에 ' 있어도 모달 정상 열림) */
+    d.innerHTML=`<div style="font-size:12px;font-weight:500;min-width:100px">${escapeHtml(h.date)}</div><div style="flex:1;font-size:12px;color:#888">${escapeHtml(h.name)}</div>${isAdm?`<div class="rbtns"><button class="btn sm" data-date="${escapeHtml(h.date)}" data-name="${escapeHtml(h.name)}" onclick="openEditHol(this.dataset.date,this.dataset.name)">수정</button><button class="btn sm dg" data-date="${escapeHtml(h.date)}" onclick="delHol(this.dataset.date)">삭제</button></div>`:''}`;
     el.appendChild(d);
   });
 }
