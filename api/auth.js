@@ -13,8 +13,8 @@ const HEADERS = {
   'Content-Type': 'application/json',
 };
 
-// 토큰 만료: admin 1시간, approver 8시간
-const TOKEN_EXPIRY = { admin: 3600, approver: 8 * 3600 };
+// 토큰 만료: admin 8시간, approver 8시간 (관리자가 긴 작업 중 만료되어 수정 안 먹히는 문제 해결)
+const TOKEN_EXPIRY = { admin: 8 * 3600, approver: 8 * 3600 };
 
 // brute-force 따속 + timing attack 보호 — 모든 login 응답에 일정 delay
 const LOGIN_DELAY_MS = 300;
