@@ -94,6 +94,7 @@ export default async function handler(req, res) {
     let sent = 0;
 
     for (const emp of employees) {
+      if (emp.active === false) continue;
       if (!emp.telegram_chat_id) continue;
       const empReqs = requests.filter(r => r.eid === emp.id);
       const { balByExpiry } = calcBalance(empReqs);

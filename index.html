@@ -780,13 +780,7 @@ function buildNav(){
   const sep=()=>{const d=document.createElement('div');d.className='nsep';nav.appendChild(d);};
   const sec=(t)=>{const d=document.createElement('div');d.className='nsec';d.textContent=t;nav.appendChild(d);};
   add('dash','대시보드');sep();sec('직원');
-  const activeEmps=EMPLOYEES.filter(e=>e.active!==false);
-  const retiredEmps=EMPLOYEES.filter(e=>e.active===false);
-  activeEmps.forEach(emp=>add('emp-'+emp.id,emp.name));
-  if(retiredEmps.length>0){
-    sep();sec('퇴사자');
-    retiredEmps.forEach(emp=>add('emp-'+emp.id,`${emp.name} (퇴사)`));
-  }
+  EMPLOYEES.filter(e=>e.active!==false).forEach(emp=>add('emp-'+emp.id,emp.name));
   if(mode==='approver'||mode==='admin'){sep();sec('승인자');add('approve',`승인 관리${pending>0?`<span class="pchip">${pending}</span>`:'`'}`, 'nappr');}
   sep();sec('관리');add('mgmt','관리 설정','nadm');
 }
@@ -1222,13 +1216,14 @@ function renderDash(){
   document.getElementById('dash-loading').style.display='none';
   document.getElementById('stat-row').style.display='grid';
   const td=today(),pending=REQUESTS.filter(r=>r.status==='pending').length;
-  const expiryData=EMPLOYEES.map(e=>getBal(e.id));
+  const activeEmps=EMPLOYEES.filter(e=>e.active!==false);
+  const expiryData=activeEmps.map(e=>getBal(e.id));
   const alert15N=expiryData.filter(b=>b.alerts&&b.alerts.length>0).length;
   const alert3N=expiryData.filter(b=>b.alerts&&b.alerts.some(a=>a.diff<=3)).length;
   const soonN=alert15N;
   const thisM=REQUESTS.filter(r=>r.status==='approved'&&r.date&&r.date.startsWith(td.slice(0,7))&&r.type!=='use').length;
   document.getElementById('stat-row').innerHTML=`
-    <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">전체 직원</div><div style="font-size:28px;font-weight:700">${EMPLOYEES.length}</div></div>
+    <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">전체 직원</div><div style="font-size:28px;font-weight:700">${activeEmps.length}</div></div>
     <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">대기 신청</div><div style="font-size:28px;font-weight:700;color:${pending>0?'#BA7517':'inherit'}">${pending}</div></div>
     <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">소멸 임박</div><div style="font-size:28px;font-weight:700;color:${alert3N>0?'#A32D2D':alert15N>0?'#D85A30':'inherit'}">${alert15N}</div><div style="font-size:10px;color:#aaa;margin-top:2px">${alert3N>0?'3일 이내 '+alert3N+'명':alert15N>0?'15일 이내':'없음'}</div></div>
     <div class="sc"><div style="font-size:13px;color:#666;margin-bottom:6px;font-weight:500">이번달 승인</div><div style="font-size:28px;font-weight:700">${thisM}</div></div>`;
@@ -1253,9 +1248,9 @@ function renderDash(){
   }
 
   const g=document.getElementById('team-cards');g.innerHTML='';
-  if(!EMPLOYEES.length){g.innerHTML='<div class="card" style="color:#888;font-size:12px">관리 설정에서 직원을 등록해주세요.</div>';return;}
+  if(!activeEmps.length){g.innerHTML='<div class="card" style="color:#888;font-size:12px">관리 설정에서 직원을 등록해주세요.</div>';return;}
   const tl={ext:'연장근무',hol:'휴일근무',use:'대체 사용'};
-  EMPLOYEES.forEach(emp=>{
+  activeEmps.forEach(emp=>{
     const{bal,soon,alerts,balByExpiry,expired,earned,used,pendingEarned,pendingUsed}=getBal(emp.id);
     const bc=bal<=0?'#888':soon?'#D85A30':'#1D9E75';
     const latest=getLatest(emp.id);
@@ -1284,7 +1279,7 @@ function renderDash(){
 /* ── APPROVE ── */
 function renderApprovePage(){
   /* 소멸 임박 요약 배너 */
-  const approveAlerts=EMPLOYEES.map(e=>{
+  const approveAlerts=EMPLOYEES.filter(e=>e.active!==false).map(e=>{
     const b=getBal(e.id);
     return b.alerts&&b.alerts.length>0?{name:e.name,alerts:b.alerts}:null;
   }).filter(Boolean);
@@ -1366,7 +1361,7 @@ async function delReq(id){
 function renderMgmt(){
   const isAdm=mode==='admin';
   /* 소멸 임박 배너 */
-  const mgmtAlerts=EMPLOYEES.map(e=>{
+  const mgmtAlerts=EMPLOYEES.filter(e=>e.active!==false).map(e=>{
     const b=getBal(e.id);
     return b.alerts&&b.alerts.length>0?{name:e.name,alerts:b.alerts}:null;
   }).filter(Boolean);
